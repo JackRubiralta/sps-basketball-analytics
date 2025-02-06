@@ -8,7 +8,7 @@ from model import Model
 
 def main():
     # Paths
-    csv_path = "games_data.csv"
+    csv_path = "games_data_half_test.csv"
     model_file_path = "model_stuff.json"
 
     print("Loading test data...")

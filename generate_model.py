@@ -9,7 +9,7 @@ from model import Model
 
 def main():
     # Path to CSV data
-    csv_path = "games_data.csv"
+    csv_path = "games_data_half1.csv"
     # Path to save the trained model
     model_file_path = "model_stuff.json"
 
