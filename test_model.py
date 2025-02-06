@@ -1,98 +1,65 @@
-import pandas as pd
-import numpy as np
+# test_model.py
+
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score, mean_squared_error
-from scipy.stats import pearsonr
-from model import (
-    load_model,
-    load_games_data,
-    load_team_regions,
-    aggregate_team_stats,
-    build_matchup_features,
-    get_feature_cols
-)
+import numpy as np
+import pandas as pd
+from data_utility import load_games_data, prepare_matchup_data, get_feature_and_label_arrays
+from model import Model
 
-def brier_score(y_true, y_prob):
-    """Compute the Brier score for binary predictions."""
-    return mean_squared_error(y_true, y_prob)
+def main():
+    # Paths
+    csv_path = "games_data.csv"
+    model_file_path = "model_stuff.json"
 
-def decile_analysis(df, prob_col='predicted_prob', actual_col='margin_diff_actual'):
-    """Group data into deciles and compute mean predicted probability and actual margin difference per decile."""
-    df['decile'] = pd.qcut(df[prob_col], 10, labels=False)
-    summary = df.groupby('decile').agg(
-        mean_predicted_prob=(prob_col, 'mean'),
-        mean_actual_margin=(actual_col, 'mean'),
-        count=('game_id', 'count')
-    ).reset_index()
-    return summary
+    print("Loading test data...")
+    df = load_games_data(csv_path)
+    merged_df = prepare_matchup_data(df)
 
-def test_model_graph_all_games():
-    # 1. Load the pre-trained model
-    model = load_model('tournament_model.joblib')
+    feature_cols = [
+        "diff_FGA_2", "diff_FGM_2",
+        "diff_FGA_3", "diff_FGM_3",
+        "diff_FTA", "diff_FTM",
+        "diff_AST", "diff_BLK", "diff_STL", "diff_TOV",
+        "diff_DREB", "diff_OREB", "diff_F_personal",
+        "diff_rest_days", "diff_travel_dist"
+    ]
     
-    # 2. Load and prepare the full season game data
-    games = load_games_data('games_data.csv')
-    team_regions = load_team_regions('team_regions.csv')
-    team_stats = aggregate_team_stats(games, team_regions)
-    matchup_features = build_matchup_features(games, team_stats)
-    feature_cols = get_feature_cols()
-    
-    # 3. Compute predicted win probabilities for all matchups using the saved model
-    X_all = matchup_features[feature_cols]
-    matchup_features['predicted_prob'] = model.predict_proba(X_all)[:, 1]
-    
-    # 4. Compute evaluation metrics
-    corr, p_value = pearsonr(matchup_features['predicted_prob'], matchup_features['margin_diff_actual'])
-    print("=== Pearson Correlation ===")
-    print(f"Correlation: {corr:.3f} (p-value: {p_value:.3e})")
-    print("-> A higher positive correlation indicates that higher predicted probabilities tend to correspond with larger win margins.\n")
-    
-    matchup_features['predicted_win'] = (matchup_features['predicted_prob'] >= 0.5).astype(int)
-    accuracy = accuracy_score(matchup_features['stronger_win'], matchup_features['predicted_win'])
-    roc_auc = roc_auc_score(matchup_features['stronger_win'], matchup_features['predicted_prob'])
-    cm = confusion_matrix(matchup_features['stronger_win'], matchup_features['predicted_win'])
-    
-    print("=== Classification Metrics ===")
-    print(f"Accuracy: {accuracy:.3f}")
-    print(f"ROC AUC: {roc_auc:.3f}")
-    print("Confusion Matrix:")
-    print(cm)
-    print("-> Accuracy is the fraction of games where the binary prediction (win if prob>=0.5) matches the actual outcome.")
-    print("-> ROC AUC indicates the model's discrimination ability between wins and losses.\n")
-    
-    brier = brier_score(matchup_features['stronger_win'], matchup_features['predicted_prob'])
-    print("=== Brier Score ===")
-    print(f"Brier Score: {brier:.3f}")
-    print("-> Lower Brier scores indicate better calibrated probability predictions.\n")
-    
-    print("=== Summary Statistics ===")
-    print(f"Total games: {len(matchup_features)}")
-    print(f"Mean predicted win probability: {matchup_features['predicted_prob'].mean():.3f}")
-    print(f"Std. dev. of predicted win probability: {matchup_features['predicted_prob'].std():.3f}")
-    print(f"Mean actual margin difference: {matchup_features['margin_diff_actual'].mean():.3f}")
-    print(f"Std. dev. of actual margin difference: {matchup_features['margin_diff_actual'].std():.3f}\n")
-    
-    decile_summary = decile_analysis(matchup_features)
-    print("=== Decile Analysis (by predicted win probability) ===")
-    print(decile_summary.to_string(index=False))
-    print("-> Decile analysis shows the average predicted probability and the corresponding actual margin difference in each 10% bucket.\n")
-    
-    # 5. Graphical Analysis
-    plt.figure(figsize=(10, 6))
-    plt.scatter(matchup_features['predicted_prob'], matchup_features['margin_diff_actual'], alpha=0.6, edgecolor='k')
-    plt.xlabel("Predicted Win Probability (Stronger Team)")
-    plt.ylabel("Actual Margin Difference (Points)")
-    plt.title("Predicted Win Probability vs. Actual Margin Difference for All Games")
-    plt.grid(True)
-    plt.show()
-    
-    plt.figure(figsize=(10, 6))
-    plt.hist(matchup_features['predicted_prob'], bins=20, alpha=0.75, color='skyblue', edgecolor='black')
-    plt.xlabel("Predicted Win Probability")
-    plt.ylabel("Frequency")
-    plt.title("Distribution of Predicted Win Probabilities")
+    label_col = "home_team_won"
+    X, y = get_feature_and_label_arrays(merged_df, feature_cols, label_col)
+
+    # For a "true" points difference, we might do:
+    # home_points_diff = merged_df["home_team_score"] - merged_df["away_team_score"]
+
+    # Load the existing model
+    my_model = Model(model_file_path=model_file_path)
+    if my_model.model is None:
+        raise ValueError("No valid model loaded. Please generate_model first.")
+
+    print("Predicting on test data...")
+    probs = my_model.predict(X)  # Probability that the home team wins
+
+    # Example: We'll compare predicted probability vs. actual outcome
+    # Convert y (0/1) into "actual home team won or not"
+    # Also show how we might plot vs. the actual point difference
+    actual_diff = merged_df["home_team_score"] - merged_df["away_team_score"]
+
+    # Plot: X-axis is actual point difference, Y-axis is predicted probability
+    plt.figure(figsize=(8,6))
+    plt.scatter(probs, actual_diff, alpha=0.5)
+    plt.xlabel("Actual Home Team Point Difference")
+    plt.ylabel("Predicted Probability (Home Team Win)")
+    plt.title("Model Prediction vs. Actual Point Difference")
     plt.grid(True)
     plt.show()
 
-if __name__ == '__main__':
-    test_model_graph_all_games()
+    # Optionally calculate some performance metrics
+    from sklearn.metrics import accuracy_score, brier_score_loss
+    predictions_binary = (probs >= 0.5).astype(int)
+    accuracy = accuracy_score(y, predictions_binary)
+    brier = brier_score_loss(y, probs)
+
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Brier Score: {brier:.4f}")
+
+if __name__ == "__main__":
+    main()
