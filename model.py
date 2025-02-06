@@ -4,6 +4,16 @@ import os
 import xgboost as xgb
 import numpy as np
 
+
+FEATURE_COLS = [
+    "diff_FGA_2", "diff_FGM_2",
+    "diff_FGA_3", "diff_FGM_3",
+    "diff_FTA", "diff_FTM",
+    "diff_AST", "diff_BLK", "diff_STL", "diff_TOV",
+    "diff_DREB", "diff_OREB", "diff_F_personal",
+    "diff_rest_days", "diff_travel_dist"
+]
+
 class Model:
     def __init__(self, model_file_path: str):
         """

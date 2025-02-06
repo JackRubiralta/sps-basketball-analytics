@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from data_utility import load_games_data, prepare_matchup_data, get_feature_and_label_arrays
-from model import Model
+from model import Model, FEATURE_COLS
 
 def main():
     # Paths
-    csv_path = "games_data_half_test.csv"
+    csv_path = "games_data_half1.csv"
     model_file_path = "model_stuff.json"
 
     print("Loading test data...")
@@ -16,17 +16,10 @@ def main():
     merged_df = prepare_matchup_data(df)
 
     # Example feature columns
-    feature_cols = [
-        "diff_FGA_2", "diff_FGM_2",
-        "diff_FGA_3", "diff_FGM_3",
-        "diff_FTA", "diff_FTM",
-        "diff_AST", "diff_BLK", "diff_STL", "diff_TOV",
-        "diff_DREB", "diff_OREB", "diff_F_personal",
-        "diff_rest_days", "diff_travel_dist"
-    ]
+  
     label_col = "home_team_won"
 
-    X, y = get_feature_and_label_arrays(merged_df, feature_cols, label_col)
+    X, y = get_feature_and_label_arrays(merged_df, FEATURE_COLS, label_col)
 
     # Load the existing model
     my_model = Model(model_file_path=model_file_path)
@@ -36,31 +29,64 @@ def main():
     print("Predicting on test data...")
     probs = my_model.predict(X)  # Probability that the home team wins
 
-    # Actual point difference (home - away)
+    # === Plot 1: Predicted probability vs. actual point difference ===
     actual_diff = merged_df["home_team_score"] - merged_df["away_team_score"]
+    plt.figure(figsize=(12, 5))
 
-    # Plot: X-axis is predicted probability, Y-axis is actual point difference
-    plt.figure(figsize=(8,6))
+    plt.subplot(1, 2, 1)  # Put the first plot on the left
     plt.scatter(probs, actual_diff, alpha=0.5)
     plt.xlabel("Predicted Probability (Home Team Win)")
     plt.ylabel("Actual Home Team Point Difference")
     plt.title("Model Prediction vs. Actual Point Difference")
     plt.grid(True)
+
+    # === Plot 2: Calibration-like plot (Actual win rate vs. predicted probability) ===
+    # We group predictions into bins and compute actual win percentage in each bin
+    n_bins = 10
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    bin_indices = np.digitize(probs, bins) - 1  # which bin each prob goes into
+
+    actual_win_rates = []
+    mean_predicted = []
+    for i in range(n_bins):
+        idxs = np.where(bin_indices == i)[0]
+        if len(idxs) > 0:
+            # Actual fraction of home-team wins in this bin
+            bin_actual_win = np.mean(y[idxs])
+            # Mean predicted probability in this bin
+            bin_mean_prob = np.mean(probs[idxs])
+        else:
+            bin_actual_win = np.nan
+            bin_mean_prob = np.nan
+
+        actual_win_rates.append(bin_actual_win)
+        mean_predicted.append(bin_mean_prob)
+
+    plt.subplot(1, 2, 2)  # Put the second plot on the right
+    plt.plot(mean_predicted, actual_win_rates, "o-", label="Actual vs. Predicted")
+    # Add a reference line for perfectly calibrated predictions
+    plt.plot([0, 1], [0, 1], "k--", label="Perfect Calibration")
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("Actual Win Rate (Home Team)")
+    plt.title("Calibration Plot")
+    plt.legend(loc="best")
+    plt.grid(True)
+
+    plt.tight_layout()
     plt.show()
 
-    # Calculate performance metrics
+    # === Calculate performance metrics ===
     from sklearn.metrics import (
-        accuracy_score, brier_score_loss, log_loss, roc_auc_score, 
+        accuracy_score, brier_score_loss, log_loss, roc_auc_score,
         confusion_matrix, classification_report
     )
 
-    # Convert probabilistic predictions to binary predictions using 0.5 threshold
+    # Convert probabilistic predictions to binary predictions using a 0.5 threshold
     predictions_binary = (probs >= 0.5).astype(int)
 
     accuracy = accuracy_score(y, predictions_binary)
     brier = brier_score_loss(y, probs)
-    # For log_loss, we need probabilities of both classes:
-    # For a binary classifier, we can do: np.column_stack([1 - probs, probs])
+    # For log_loss, we need probabilities of both classes
     logloss = log_loss(y, np.column_stack([1 - probs, probs]))
     roc_auc = roc_auc_score(y, probs)
     cm = confusion_matrix(y, predictions_binary)

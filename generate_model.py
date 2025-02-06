@@ -5,11 +5,11 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from data_utility import load_games_data, prepare_matchup_data, get_feature_and_label_arrays
-from model import Model
+from model import Model, FEATURE_COLS
 
 def main():
     # Path to CSV data
-    csv_path = "games_data_half1.csv"
+    csv_path = "games_data_half_test.csv"
     # Path to save the trained model
     model_file_path = "model_stuff.json"
 
@@ -21,17 +21,9 @@ def main():
 
     # Define your feature columns. 
     # Here we are taking some 'diff_' columns and maybe a few direct columns for demonstration.
-    feature_cols = [
-        "diff_FGA_2", "diff_FGM_2",
-        "diff_FGA_3", "diff_FGM_3",
-        "diff_FTA", "diff_FTM",
-        "diff_AST", "diff_BLK", "diff_STL", "diff_TOV",
-        "diff_DREB", "diff_OREB", "diff_F_personal",
-        "diff_rest_days", "diff_travel_dist"
-    ]
-
+    
     label_col = "home_team_won"  # or another label of your choice
-    X, y = get_feature_and_label_arrays(merged_df, feature_cols, label_col)
+    X, y = get_feature_and_label_arrays(merged_df, FEATURE_COLS, label_col)
 
     # Split data into train/validation (and optionally test)
     X_train, X_val, y_train, y_val = train_test_split(
