@@ -1,0 +1,46 @@
+# Modelo 1 (antes de GPU)
+Single-Game Prediction: Probability that home team wins = 0.7410
+
+=== MODEL PERFORMANCE (TEST) ===
+Accuracy:  0.8465
+Brier:     0.1123
+Log Loss:  0.3621
+ROC AUC:   0.9248
+
+Confusion Matrix:
+[[1467  520]
+ [ 281 2951]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.8392    0.7383    0.7855      1987
+           1     0.8502    0.9131    0.8805      3232
+
+    accuracy                         0.8465      5219
+   macro avg     0.8447    0.8257    0.8330      5219
+weighted avg     0.8460    0.8465    0.8443      5219
+
+PS C:\Users\Jack School\Desktop\Bball> 
+
+# Modelo 2 (con GPU)
+Model loaded from model_stuff.json
+Training model (with hyperparameter search)...
+Auto-calculated scale_pos_weight = 0.615
+Starting hyperparameter search...
+Fitting 5 folds for each of 80 candidates, totalling 400 fits
+Best params found: {'subsample': 0.5, 'scale_pos_weight': 0.6147896039603961, 'reg_lambda': 2, 'reg_alpha': 0, 'n_estimators': 1000, 'max_depth': 3, 'learning_rate': 0.02, 'gamma': 0.5, 'colsample_bytree': 0.5}
+
+Fitting final model with params: {'objective': 'binary:logistic', 'eval_metric': 'logloss', 'n_jobs': -1, 'subsample': 0.5, 'scale_pos_weight': 0.6147896039603961, 'reg_lambda': 2, 'reg_alpha': 0, 'n_estimators': 1000, 'max_depth': 3, 'learning_rate': 0.02, 'gamma': 0.5, 'colsample_bytree': 0.5}
+Traceback (most recent call last):
+  File "c:\Users\Jack School\Desktop\Bball\generate_model.py", line 25, in <module>
+    main()
+  File "c:\Users\Jack School\Desktop\Bball\generate_model.py", line 17, in main
+    my_model.generate_model(do_hyperparam_search=True)
+  File "c:\Users\Jack School\Desktop\Bball\model.py", line 158, in generate_model
+    self.model.fit(X_train, y_train, **fit_kwargs)
+  File "C:\Users\Jack School\AppData\Roaming\Python\Python312\site-packages\xgboost\core.py", line 726, in inner_f
+    return func(**kwargs)
+           ^^^^^^^^^^^^^^
+TypeError: XGBClassifier.fit() got an unexpected keyword argument 'early_stopping_rounds'
+PS C:\Users\Jack School\Desktop\Bball> 

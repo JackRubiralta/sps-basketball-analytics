@@ -1,51 +1,25 @@
 # generate_model.py
 
-import os
-import pandas as pd
-from sklearn.model_selection import train_test_split
-
-from data_utility import load_games_data, prepare_matchup_data, get_feature_and_label_arrays
-from model import Model, FEATURE_COLS
+from model import Model
+from games_data import GamesData
 
 def main():
-    # Path to CSV data
-    csv_path = "games_data_half_test.csv"
-    # Path to save the trained model
+    # 1) Create a GamesData instance for 'training_data.csv'
+    training_csv_path = "games_data.csv"
+    games_data = GamesData(training_csv_path)
+
+    # 2) Create the Model, passing the same file path for saving
     model_file_path = "model_stuff.json"
+    my_model = Model(model_file_path=model_file_path, games_data=games_data)
 
-    print("Loading data...")
-    df = load_games_data(csv_path)
+    # 3) Generate (train) the model
+    print("Training model (with hyperparameter search)...")
+    my_model.generate_model(do_hyperparam_search=True)
+    print("Done training.")
 
-    print("Preparing matchup data...")
-    merged_df = prepare_matchup_data(df)
-
-    # Define your feature columns. 
-    # Here we are taking some 'diff_' columns and maybe a few direct columns for demonstration.
-    
-    label_col = "home_team_won"  # or another label of your choice
-    X, y = get_feature_and_label_arrays(merged_df, FEATURE_COLS, label_col)
-
-    # Split data into train/validation (and optionally test)
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    # Initialize Model object
-    my_model = Model(model_file_path=model_file_path)
-
-    # Generate (train) the model
-    print("Training model...")
-    my_model.generate_model(X_train, y_train, X_val, y_val, 
-                            learning_rate=0.05,
-                            max_depth=8,
-                            n_estimators=500,
-                            subsample=0.8,
-                            colsample_bytree=0.8)
-
-    # Save the trained model
+    # 4) Save the model
     my_model.save_model()
-    print("Done generating and saving the model.")
-
+    print("Saved model.")
 
 if __name__ == "__main__":
     main()
