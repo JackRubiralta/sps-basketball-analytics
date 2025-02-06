@@ -15,6 +15,7 @@ def main():
     df = load_games_data(csv_path)
     merged_df = prepare_matchup_data(df)
 
+    # Example feature columns
     feature_cols = [
         "diff_FGA_2", "diff_FGM_2",
         "diff_FGA_3", "diff_FGM_3",
@@ -23,12 +24,9 @@ def main():
         "diff_DREB", "diff_OREB", "diff_F_personal",
         "diff_rest_days", "diff_travel_dist"
     ]
-    
     label_col = "home_team_won"
-    X, y = get_feature_and_label_arrays(merged_df, feature_cols, label_col)
 
-    # For a "true" points difference, we might do:
-    # home_points_diff = merged_df["home_team_score"] - merged_df["away_team_score"]
+    X, y = get_feature_and_label_arrays(merged_df, feature_cols, label_col)
 
     # Load the existing model
     my_model = Model(model_file_path=model_file_path)
@@ -38,28 +36,45 @@ def main():
     print("Predicting on test data...")
     probs = my_model.predict(X)  # Probability that the home team wins
 
-    # Example: We'll compare predicted probability vs. actual outcome
-    # Convert y (0/1) into "actual home team won or not"
-    # Also show how we might plot vs. the actual point difference
+    # Actual point difference (home - away)
     actual_diff = merged_df["home_team_score"] - merged_df["away_team_score"]
 
-    # Plot: X-axis is actual point difference, Y-axis is predicted probability
+    # Plot: X-axis is predicted probability, Y-axis is actual point difference
     plt.figure(figsize=(8,6))
     plt.scatter(probs, actual_diff, alpha=0.5)
-    plt.xlabel("Actual Home Team Point Difference")
-    plt.ylabel("Predicted Probability (Home Team Win)")
+    plt.xlabel("Predicted Probability (Home Team Win)")
+    plt.ylabel("Actual Home Team Point Difference")
     plt.title("Model Prediction vs. Actual Point Difference")
     plt.grid(True)
     plt.show()
 
-    # Optionally calculate some performance metrics
-    from sklearn.metrics import accuracy_score, brier_score_loss
+    # Calculate performance metrics
+    from sklearn.metrics import (
+        accuracy_score, brier_score_loss, log_loss, roc_auc_score, 
+        confusion_matrix, classification_report
+    )
+
+    # Convert probabilistic predictions to binary predictions using 0.5 threshold
     predictions_binary = (probs >= 0.5).astype(int)
+
     accuracy = accuracy_score(y, predictions_binary)
     brier = brier_score_loss(y, probs)
+    # For log_loss, we need probabilities of both classes:
+    # For a binary classifier, we can do: np.column_stack([1 - probs, probs])
+    logloss = log_loss(y, np.column_stack([1 - probs, probs]))
+    roc_auc = roc_auc_score(y, probs)
+    cm = confusion_matrix(y, predictions_binary)
+    report = classification_report(y, predictions_binary, digits=4)
 
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Brier Score: {brier:.4f}")
+    print("\n=== MODEL PERFORMANCE METRICS ===")
+    print(f"Accuracy:         {accuracy:.4f}")
+    print(f"Brier Score:      {brier:.4f} (lower is better)")
+    print(f"Log Loss:         {logloss:.4f} (lower is better)")
+    print(f"ROC AUC:          {roc_auc:.4f} (higher is better)")
+    print("\nConfusion Matrix (rows=actual, cols=predicted):")
+    print(cm)
+    print("\nClassification Report:")
+    print(report)
 
 if __name__ == "__main__":
     main()
