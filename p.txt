@@ -1,0 +1,661 @@
+# model.py
+import os
+import numpy as np
+import xgboost as xgb
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.ensemble import StackingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, log_loss, brier_score_loss, roc_auc_score
+from xgboost import XGBClassifier
+import joblib  # for saving and loading scikit-learn models
+
+from games_data import GamesData  # We'll reference your new class here
+
+class Model:
+    def __init__(self, model_file_path: str, games_data: GamesData):
+        """
+        We store a reference to the GamesData instance for use in training/predicting.
+        If model_file_path exists, load the saved model from that path.
+        Otherwise, self.model = None until we call 'generate_model' or 'load_model'.
+        """
+        self.model_file_path = model_file_path
+        self.model = None
+        self.games_data = games_data  # reference to your custom data class
+
+        if os.path.exists(self.model_file_path):
+            self.load_model()
+        else:
+            print(f"Model file not found at {self.model_file_path}. "
+                  f"Will need to generate a new model or load manually.")
+
+    def hyperparam_search(self, X, y, cv=3, n_iter=40, random_state=42):
+        """
+        Uses RandomizedSearchCV to find good hyperparameters for XGBoost.
+        Returns the best parameter dictionary found.
+        """
+        param_dist = {
+            "learning_rate":   [0.01, 0.02, 0.05, 0.1],
+            "max_depth":       [4, 6, 8, 10],
+            "n_estimators":    [100, 200, 300, 500, 800],
+            "subsample":       [0.5, 0.7, 0.8, 1.0],
+            "colsample_bytree":[0.5, 0.7, 0.8, 1.0],
+            "gamma":           [0, 0.1, 0.2, 0.5],
+            "reg_lambda":      [1, 2, 5, 10],
+            "reg_alpha":       [0, 0.1, 1, 2]
+        }
+
+        xgb_model = xgb.XGBClassifier(
+            objective="binary:logistic",
+            eval_metric="logloss",
+            n_jobs=-1,
+            random_state=random_state
+        )
+
+        search = RandomizedSearchCV(
+            xgb_model,
+            param_distributions=param_dist,
+            scoring='neg_log_loss',
+            n_iter=n_iter,
+            cv=cv,
+            verbose=1,
+            random_state=random_state
+        )
+
+        print("Starting hyperparameter search...")
+        search.fit(X, y)
+        print("Best params found:", search.best_params_)
+        return search.best_params_
+
+    def generate_model(self, do_hyperparam_search=True):
+        """
+        Build and train an ensemble model using stacking and hyperparameter tuning.
+        Parameters:
+            do_hyperparam_search (bool): If True, perform hyperparameter search for base models.
+        Returns:
+            Trained stacking ensemble model.
+        """
+        # Prepare training data using GamesData
+        merged_df = self.games_data.prepare_training_data()
+        X, y = self.games_data.get_feature_and_label_arrays(merged_df)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, stratify=y, random_state=42
+        )
+
+        # Define base estimators for stacking
+        xgb_clf = XGBClassifier(eval_metric='logloss', random_state=42)
+        rf_clf  = RandomForestClassifier(random_state=42)
+        # Meta-learner (level-1 model)
+        meta_learner = LogisticRegression(max_iter=1000)
+
+        if do_hyperparam_search:
+            # Hyperparameter grid for XGBoost
+            xgb_param_grid = {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [3, 6, 9],
+                'learning_rate': [0.01, 0.1, 0.3],
+                'subsample': [0.6, 0.8, 1.0],
+                'colsample_bytree': [0.6, 0.8, 1.0]
+            }
+            xgb_search = RandomizedSearchCV(
+                estimator=XGBClassifier(eval_metric='logloss', random_state=42),
+                param_distributions=xgb_param_grid,
+                n_iter=20,
+                scoring='roc_auc',
+                cv=3,
+                random_state=42,
+                n_jobs=-1,
+                verbose=0
+            )
+            xgb_search.fit(X_train, y_train)
+            xgb_clf = xgb_search.best_estimator_
+
+            # Hyperparameter grid for Random Forest
+            rf_param_grid = {
+                'n_estimators': [100, 200, 500],
+                'max_depth': [None, 5, 10, 20],
+                'max_features': ['sqrt', 'log2', None]
+            }
+            rf_search = RandomizedSearchCV(
+                estimator=RandomForestClassifier(random_state=42),
+                param_distributions=rf_param_grid,
+                n_iter=10,
+                scoring='roc_auc',
+                cv=3,
+                random_state=42,
+                n_jobs=-1,
+                verbose=0
+            )
+            rf_search.fit(X_train, y_train)
+            rf_clf = rf_search.best_estimator_
+
+            meta_learner = LogisticRegression(max_iter=1000)
+
+        # Create the stacking ensemble classifier
+        estimators = [
+            ('xgb', xgb_clf),
+            ('rf', rf_clf)
+        ]
+        stacking_clf = StackingClassifier(
+            estimators=estimators,
+            final_estimator=meta_learner,
+            cv=5,
+            n_jobs=-1,
+            passthrough=False
+        )
+
+        # Train the stacking ensemble on the training data
+        stacking_clf.fit(X_train, y_train)
+        self.model = stacking_clf
+
+        # Evaluate the model on test set with various metrics
+        y_pred = self.model.predict(X_test)
+        if len(np.unique(y_test)) == 2:
+            y_proba = self.model.predict_proba(X_test)[:, 1]
+        else:
+            y_proba = self.model.predict_proba(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        auc = roc_auc_score(y_test, y_proba) if len(np.unique(y_test)) == 2 else None
+        logloss = log_loss(y_test, self.model.predict_proba(X_test))
+        brier = None
+        if len(np.unique(y_test)) == 2:
+            try:
+                brier = brier_score_loss(y_test, y_proba)
+            except Exception:
+                brier = None
+
+        print(f"Accuracy: {accuracy:.4f}")
+        if auc is not None:
+            print(f"ROC AUC: {auc:.4f}")
+        else:
+            print("ROC AUC: N/A (multi-class case)")
+        print(f"Log Loss: {logloss:.4f}")
+        if brier is not None:
+            print(f"Brier Score: {brier:.4f}")
+        else:
+            print("Brier Score: N/A (only for binary classification)")
+
+        return self.model
+
+    def predict_single_game(self,
+                            team_home: str,
+                            team_away: str,
+                            home_rest_days: float,
+                            home_travel_dist: float,
+                            away_rest_days: float,
+                            away_travel_dist: float) -> float:
+        """
+        For a single matchup, build the feature vector using self.games_data,
+        then return the predicted probability that the home team wins.
+        """
+        if self.model is None:
+            raise ValueError("No model loaded or trained. Please call generate_model() or load_model().")
+
+        X_single = self.games_data.build_prediction_features(
+            team_home, team_away,
+            home_rest_days, home_travel_dist,
+            away_rest_days, away_travel_dist
+        )
+        prob_home_win = self.model.predict_proba(X_single)[:, 1][0]
+        return prob_home_win
+
+    def predict_batch(self, X: np.ndarray) -> np.ndarray:
+        """
+        For batch predictions, you already have feature vectors in shape (N, num_features).
+        Return array of probabilities.
+        """
+        if self.model is None:
+            raise ValueError("No model found. Train or load a model before predicting.")
+        return self.model.predict_proba(X)[:, 1]
+
+    def save_model(self):
+        """
+        Saves the model to self.model_file_path using joblib.
+        """
+        if self.model is None:
+            print("No model found to save.")
+            return
+        joblib.dump(self.model, self.model_file_path)
+        print(f"Model saved to {self.model_file_path}")
+
+    def load_model(self):
+        """
+        Loads a model from self.model_file_path using joblib.
+        """
+        self.model = joblib.load(self.model_file_path)
+        print(f"Model loaded from {self.model_file_path}")
+
+# test_model.py
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import os
+from sklearn.metrics import (
+    accuracy_score, brier_score_loss, log_loss, roc_auc_score,
+    confusion_matrix, classification_report
+)
+
+from model import Model
+from games_data import GamesData
+
+def main():
+    # 1) Instantiate your GamesData (the same one used for training)
+    training_csv_path = "games_data.csv"
+    games_data = GamesData(training_csv_path)
+
+    # 2) Create the Model
+    model_file_path = "model_stuff.json"
+    my_model = Model(model_file_path=model_file_path, games_data=games_data)
+    if my_model.model is None:
+        raise ValueError("No model loaded. Please train or check the path.")
+
+    # -----------------------------------------
+    # Example 1: Single-Game "manual" prediction
+    # -----------------------------------------
+    prob = my_model.predict_single_game(
+        team_home="lsu_tigers",
+        team_away="georgia_lady_bulldogs",
+        home_rest_days=3.0,
+        home_travel_dist=100.0,
+        away_rest_days=2.0,
+        away_travel_dist=200.0
+    )
+    print(f"\nSingle-Game Prediction: Probability home wins = {prob:.4f}")
+
+    # -----------------------------------------
+    # Example 2: Evaluate entire test CSV
+    # -----------------------------------------
+    test_csv_path = "games_data_testing.csv"
+    if not os.path.exists(test_csv_path):
+        print(f"\nNo {test_csv_path} found, skipping batch evaluation.")
+        return
+
+    test_df = pd.read_csv(test_csv_path)
+    print(f"\nLoaded {len(test_df)} rows from {test_csv_path}...")
+
+    # We'll build predictions row by row
+    y_probs = []
+    y_true = []
+
+    # We'll check if final scores exist for metrics
+    has_scores = ("team_score_Home" in test_df.columns
+                  and "team_score_Away" in test_df.columns)
+
+    for _, row in test_df.iterrows():
+        # Pull out the needed columns
+        # e.g. 'team_home', 'team_away', 'home_rest_days', 'away_rest_days', etc.
+        team_home = row.get("team_home", "")
+        team_away = row.get("team_away", "")
+
+        # You might name them "home_rest_days" in your CSV or "rest_days_Home".
+        # We'll try both, defaulting to 0.0 if missing.
+        home_rest_days = row.get("home_rest_days", row.get("rest_days_Home", 0.0))
+        away_rest_days = row.get("away_rest_days", row.get("rest_days_Away", 0.0))
+        home_travel_dist = row.get("home_travel_dist", row.get("travel_dist_Home", 0.0))
+        away_travel_dist = row.get("away_travel_dist", row.get("travel_dist_Away", 0.0))
+
+        # Call single-game prediction
+        prob_home_win = my_model.predict_single_game(
+            team_home=team_home,
+            team_away=team_away,
+            home_rest_days=home_rest_days,
+            home_travel_dist=home_travel_dist,
+            away_rest_days=away_rest_days,
+            away_travel_dist=away_travel_dist
+        )
+        y_probs.append(prob_home_win)
+
+        # If we have actual scores, figure out if the home team won
+        if has_scores:
+            home_score = row["team_score_Home"]
+            away_score = row["team_score_Away"]
+            actual_home_win = 1 if home_score > away_score else 0
+            y_true.append(actual_home_win)
+
+    y_probs = np.array(y_probs)
+
+    # -------------------------
+    # Evaluate if we have actual scores
+    # -------------------------
+    if has_scores and len(y_true) == len(y_probs):
+        y_true = np.array(y_true)
+        # Convert probabilities to 0/1 predictions at threshold=0.5
+        y_pred = (y_probs >= 0.5).astype(int)
+
+        # Classification metrics
+        accuracy = accuracy_score(y_true, y_pred)
+        brier    = brier_score_loss(y_true, y_probs)
+        ll       = log_loss(y_true, np.column_stack([1 - y_probs, y_probs]))
+        auc      = roc_auc_score(y_true, y_probs)
+        cm       = confusion_matrix(y_true, y_pred)
+        report   = classification_report(y_true, y_pred, digits=4)
+
+        print("\n=== MODEL PERFORMANCE (TEST) ===")
+        print(f"Accuracy:  {accuracy:.4f}")
+        print(f"Brier:     {brier:.4f}")
+        print(f"Log Loss:  {ll:.4f}")
+        print(f"ROC AUC:   {auc:.4f}")
+        print("\nConfusion Matrix:")
+        print(cm)
+        print("\nClassification Report:")
+        print(report)
+
+        # -------------
+        # Plot graphs
+        # -------------
+        # 1) Probability vs. actual point diff (if "home_team_score" in test_df)
+        actual_diff = test_df["team_score_Home"] - test_df["team_score_Away"]
+
+        plt.figure(figsize=(12, 5))
+
+        # Plot 1: Probability vs. Actual Point Difference
+        plt.subplot(1, 2, 1)
+        plt.scatter(y_probs, actual_diff, alpha=0.5)
+        plt.xlabel("Predicted Probability (Home Win)")
+        plt.ylabel("Actual Home Team Point Diff")
+        plt.title("Prediction vs. Actual Point Diff")
+        plt.grid(True)
+
+        # Plot 2: Calibration Plot
+        n_bins = 10
+        bins = np.linspace(0, 1, n_bins + 1)
+        bin_indices = np.digitize(y_probs, bins) - 1
+
+        actual_win_rates = []
+        mean_predicted = []
+
+        for i in range(n_bins):
+            idxs = np.where(bin_indices == i)[0]
+            if len(idxs) > 0:
+                bin_mean_prob = np.mean(y_probs[idxs])
+                bin_actual_win = np.mean(y_true[idxs])
+            else:
+                bin_mean_prob = np.nan
+                bin_actual_win = np.nan
+
+            mean_predicted.append(bin_mean_prob)
+            actual_win_rates.append(bin_actual_win)
+
+        plt.subplot(1, 2, 2)
+        plt.plot(mean_predicted, actual_win_rates, 'o-', label="Actual vs. Predicted")
+        plt.plot([0, 1], [0, 1], 'k--', label="Perfect Calibration")
+        plt.xlabel("Mean Predicted Probability")
+        plt.ylabel("Actual Home Win Rate")
+        plt.title("Calibration Plot")
+        plt.legend(loc="best")
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
+# generate_model.py
+
+from model import Model
+from games_data import GamesData
+
+def main():
+    # 1) Create a GamesData instance for 'training_data.csv'
+    training_csv_path = "games_data.csv"
+    games_data = GamesData(training_csv_path)
+
+    # 2) Create the Model, passing the same file path for saving
+    model_file_path = "model_stuff.json"
+    my_model = Model(model_file_path=model_file_path, games_data=games_data)
+
+    # 3) Generate (train) the model
+    print("Training model (with hyperparameter search)...")
+    my_model.generate_model(do_hyperparam_search=True)
+    print("Done training.")
+
+    # 4) Save the model
+    my_model.save_model()
+    print("Saved model.")
+
+if __name__ == "__main__":
+    main()
+
+# games_data.py
+# games_data.py
+
+import pandas as pd
+import numpy as np
+import os
+
+class GamesData:
+    """
+    Manages the data pipeline for training and prediction:
+    - Loads training_data.csv
+    - Computes team averages
+    - Merges home/away data into one row per game for training
+    - Builds feature vectors for new matchups
+    """
+
+    # The columns we want to average for each team
+    _cols_to_avg = [
+        "FGA_2", "FGM_2", "FGA_3", "FGM_3",
+        "FTA",   "FTM",   "AST",   "BLK",
+        "STL",   "TOV",   "DREB",  "OREB",
+        "F_personal"
+    ]
+
+    # The final feature columns we want for training/prediction
+    FEATURE_COLS = [
+        # 13 home_avg_ stats
+        "home_avg_FGA_2", "home_avg_FGM_2",
+        "home_avg_FGA_3", "home_avg_FGM_3",
+        "home_avg_FTA",   "home_avg_FTM",
+        "home_avg_AST",   "home_avg_BLK",
+        "home_avg_STL",   "home_avg_TOV",
+        "home_avg_DREB",  "home_avg_OREB",
+        "home_avg_F_personal",
+
+        # 13 away_avg_ stats
+        "away_avg_FGA_2", "away_avg_FGM_2",
+        "away_avg_FGA_3", "away_avg_FGM_3",
+        "away_avg_FTA",   "away_avg_FTM",
+        "away_avg_AST",   "away_avg_BLK",
+        "away_avg_STL",   "away_avg_TOV",
+        "away_avg_DREB",  "away_avg_OREB",
+        "away_avg_F_personal",
+
+        # Some game-level columns that we know exist in both train & test
+        "home_rest_days",  "home_travel_dist",
+        "away_rest_days",  "away_travel_dist",
+    ]
+
+    def __init__(self, csv_path: str):
+        """
+        Loads the training CSV (one row per team/game).
+        """
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(f"{csv_path} does not exist.")
+
+        self.csv_path = csv_path
+        self.df = pd.read_csv(csv_path)
+
+        # Precompute the team averages from training data
+        self.team_avgs = self._compute_team_averages(self.df)
+
+    def _compute_team_averages(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Group by 'team' and compute averages for columns in _cols_to_avg.
+        """
+        df_avg = df.groupby("team")[self._cols_to_avg].mean().reset_index()
+        rename_dict = {col: f"avg_{col}" for col in self._cols_to_avg}
+        df_avg.rename(columns=rename_dict, inplace=True)
+        return df_avg
+
+    def prepare_training_data(self) -> pd.DataFrame:
+        """
+        Merges home & away rows into a single row per game, storing
+        home/away stats + 'home_team_won'.
+        """
+        df_team_avgs = self.team_avgs
+
+        # Separate out 'home' rows and 'away' rows
+        df_home = self.df[self.df["home_away"] == "home"].copy()
+        df_away = self.df[self.df["home_away"] == "away"].copy()
+
+        # Merge each side with the team averages
+        df_home = df_home.merge(df_team_avgs, on="team", how="left")
+        df_away = df_away.merge(df_team_avgs, on="team", how="left")
+
+        # Rename columns to say "home_" or "away_"
+        home_cols = {}
+        away_cols = {}
+        for col in df_home.columns:
+            if col not in ["game_id", "team", "game_date", "home_away"]:
+                home_cols[col] = f"home_{col}"
+
+        for col in df_away.columns:
+            if col not in ["game_id", "team", "game_date", "home_away"]:
+                away_cols[col] = f"away_{col}"
+
+        df_home.rename(columns=home_cols, inplace=True)
+        df_away.rename(columns=away_cols, inplace=True)
+
+        # Merge home & away frames on game_id
+        merged = pd.merge(df_home, df_away, on="game_id", how="inner")
+
+        # Create the label: did the home team win?
+        merged["home_team_won"] = (
+            merged["home_team_score"] > merged["away_team_score"]
+        ).astype(int)
+
+        return merged
+
+    def get_feature_and_label_arrays(self, merged_df: pd.DataFrame,
+                                     label_col: str = "home_team_won"):
+        """
+        Extracts (X, y) from the merged_df.
+        X has columns in FEATURE_COLS, y is label_col.
+        """
+        X = merged_df[self.FEATURE_COLS].values
+        y = merged_df[label_col].values
+        return X, y
+
+    def build_prediction_features(self,
+                                  team_home: str,
+                                  team_away: str,
+                                  home_rest_days: float,
+                                  home_travel_dist: float,
+                                  away_rest_days: float,
+                                  away_travel_dist: float) -> np.ndarray:
+        """
+        Creates a single 1-row feature vector for a new matchup (not from CSV).
+        We:
+          1) Look up the average stats for team_home and team_away from self.team_avgs
+          2) Construct the feature array in the same order as FEATURE_COLS
+        Returns a numpy array shape (1, num_features).
+        """
+
+        # 1) Retrieve home/away average stats
+        home_avgs = self.team_avgs[self.team_avgs["team"] == team_home].copy()
+        away_avgs = self.team_avgs[self.team_avgs["team"] == team_away].copy()
+
+        if home_avgs.empty:
+            raise ValueError(f"No training average found for home team '{team_home}'")
+        if away_avgs.empty:
+            raise ValueError(f"No training average found for away team '{team_away}'")
+
+        # 2) Rename columns, e.g. 'avg_FGA_2' -> 'home_avg_FGA_2'
+        home_avgs = home_avgs.rename(
+            columns={col: f"home_{col}" for col in home_avgs.columns if col != "team"}
+        )
+        away_avgs = away_avgs.rename(
+            columns={col: f"away_{col}" for col in away_avgs.columns if col != "team"}
+        )
+
+        # 3) Build a dict with the needed columns
+        features_dict = {}
+
+        # Insert home average stats (like home_avg_FGA_2, etc.)
+        for col in home_avgs.columns:
+            if col == "team":
+                continue
+            features_dict[col] = home_avgs.iloc[0][col]
+
+        # Insert away average stats
+        for col in away_avgs.columns:
+            if col == "team":
+                continue
+            features_dict[col] = away_avgs.iloc[0][col]
+
+        # Insert the numeric fields for rest/travel
+        features_dict["home_rest_days"]   = home_rest_days
+        features_dict["home_travel_dist"] = home_travel_dist
+        features_dict["away_rest_days"]   = away_rest_days
+        features_dict["away_travel_dist"] = away_travel_dist
+
+        # 4) Ensure we fill in all FEATURE_COLS in the correct order
+        row = []
+        for col in self.FEATURE_COLS:
+            if col not in features_dict:
+                # If we are missing something, fill with 0 or raise an error
+                row.append(0.0)
+            else:
+                row.append(features_dict[col])
+
+        return np.array([row])  # shape (1, n_features)
+
+games_data_testing.csv
+game_id,team_home,team_away,rest_days_Home,rest_days_Away,travel_dist_Home,travel_dist_Away,team_score_Home,team_score_Away
+game_2022_2011,georgia_lady_bulldogs,lsu_tigers,9.0,3.0,0.0,824.0,62,68
+game_2022_2012,missouri_tigers,south_carolina_gamecocks,8.0,9.0,0.0,1154.0,70,69
+game_2022_2013,tennessee_lady_volunteers,alabama_crimson_tide,3.0,17.0,0.0,439.0,62,44
+game_2022_2111,alabama_crimson_tide,auburn_tigers,3.0,13.0,0.0,197.0,56,53
+game_2022_2112,arkansas_razorbacks,tennessee_lady_volunteers,12.0,3.0,0.0,920.0,63,70
+game_2022_2113,florida_gators,georgia_lady_bulldogs,12.0,3.0,0.0,484.0,69,73
+
+games_data.csv
+game_id,game_date,team,FGA_2,FGM_2,FGA_3,FGM_3,FTA,FTM,AST,BLK,STL,TOV,TOV_team,DREB,OREB,F_tech,F_personal,team_score,opponent_team_score,largest_lead,notD1_incomplete,OT_length_min_tot,rest_days,attendance,tz_dif_H_E,prev_game_dist,home_away,home_away_NS,travel_dist
+game_2022_1338,12/5/2021,umbc_retrievers,52,21,9,3,8,6,7,2,10,18,2,25,4,0,24,51,63,0,FALSE,NA,4,341,0,55,home,1,0
+game_2022_1338,12/5/2021,st_francis_brooklyn_terriers,59,22,25,7,17,12,14,0,5,17,1,28,14,0,14,63,51,15,FALSE,NA,7,341,0,348,away,-1,274
+game_2022_1339,12/5/2021,massachusetts_minutewomen,62,20,14,3,24,15,10,4,13,15,0,22,18,0,12,58,53,9,FALSE,NA,4,537,0,0,home,1,0
+game_2022_1339,12/5/2021,umass_lowell_river_hawks,57,23,13,4,4,3,15,5,11,25,2,27,13,0,21,53,58,9,FALSE,NA,4,537,0,329,away,-1,101
+
+results with the data trained being diffrent from the data tested on
+=== MODEL PERFORMANCE (TEST) ===
+Accuracy:  0.7053
+Brier:     0.2004
+Log Loss:  0.5877
+ROC AUC:   0.7490
+
+Confusion Matrix:
+[[296 227]
+ [142 587]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.6758    0.5660    0.6160       523
+           1     0.7211    0.8052    0.7609       729
+
+    accuracy                         0.7053      1252
+   macro avg     0.6985    0.6856    0.6884      1252
+weighted avg     0.7022    0.7053    0.7004      1252
+
+
+results of the data trained on the same as the data tested on
+=== MODEL PERFORMANCE (TEST) ===
+Accuracy:  0.8994
+Brier:     0.0864
+Log Loss:  0.3088
+ROC AUC:   0.9607
+
+Confusion Matrix:
+[[1622  365]
+ [ 160 3072]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0     0.9102    0.8163    0.8607      1987
+           1     0.8938    0.9505    0.9213      3232
+
+    accuracy                         0.8994      5219
+   macro avg     0.9020    0.8834    0.8910      5219
+weighted avg     0.9001    0.8994    0.8982      5219
