@@ -56,4 +56,4 @@ def transform_testing_data(input_csv="testing_data.csv", output_csv="testing_dat
 
 if __name__ == "__main__":
     # Run the transformation in-place (reading and writing the same CSV).
-    transform_testing_data("games_data_testing.csv", "games_data_testing.csv")
+    transform_testing_data("games_data.csv", "games_data_testing.csv")

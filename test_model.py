@@ -1,29 +1,29 @@
+# test_model.py
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
 from sklearn.metrics import (
     accuracy_score, brier_score_loss, log_loss, roc_auc_score,
-    confusion_matrix, classification_report
+    confusion_matrix, classification_report, roc_curve, precision_recall_curve
 )
 
 from model import Model
 from games_data import GamesData
 
 def main():
-    # 1) Instantiate your GamesData (the same one used for training)
+    # 1) Create the GamesData (for consistent feature engineering)
     training_csv_path = "games_data.csv"
     games_data = GamesData(training_csv_path)
 
-    # 2) Create the Model
+    # 2) Load the pre-trained Stacking Model
     model_file_path = "model_stuff.json"
     my_model = Model(model_file_path=model_file_path, games_data=games_data)
     if my_model.model is None:
-        raise ValueError("No model loaded. Please train or check the path.")
+        raise ValueError(f"No model loaded from {model_file_path}.")
 
-    # -----------------------------------------
-    # Example 1: Single-Game "manual" prediction
-    # -----------------------------------------
+    # 3) Example single-game prediction
     prob = my_model.predict_single_game(
         team_home="lsu_tigers",
         team_away="georgia_lady_bulldogs",
@@ -34,39 +34,32 @@ def main():
     )
     print(f"\nSingle-Game Prediction: Probability home wins = {prob:.4f}")
 
-    # -----------------------------------------
-    # Example 2: Evaluate entire test CSV
-    # -----------------------------------------
+    # 4) Evaluate entire test CSV
     test_csv_path = "games_data_testing.csv"
     if not os.path.exists(test_csv_path):
-        print(f"\nNo {test_csv_path} found, skipping batch evaluation.")
+        print(f"No {test_csv_path} found, skipping batch evaluation.")
         return
 
     test_df = pd.read_csv(test_csv_path)
     print(f"\nLoaded {len(test_df)} rows from {test_csv_path}...")
 
-    # We'll build predictions row by row
     y_probs = []
     y_true = []
 
-    # We'll check if final scores exist for metrics
     has_scores = ("team_score_Home" in test_df.columns
                   and "team_score_Away" in test_df.columns)
 
     for _, row in test_df.iterrows():
-        # Pull out the needed columns
-        # e.g. 'team_home', 'team_away', 'home_rest_days', 'away_rest_days', etc.
         team_home = row.get("team_home", "")
         team_away = row.get("team_away", "")
 
-        # You might name them "home_rest_days" in your CSV or "rest_days_Home".
-        # We'll try both, defaulting to 0.0 if missing.
+        # We look for "home_rest_days"/"rest_days_Home"
         home_rest_days = row.get("home_rest_days", row.get("rest_days_Home", 0.0))
         away_rest_days = row.get("away_rest_days", row.get("rest_days_Away", 0.0))
         home_travel_dist = row.get("home_travel_dist", row.get("travel_dist_Home", 0.0))
         away_travel_dist = row.get("away_travel_dist", row.get("travel_dist_Away", 0.0))
 
-        # Call single-game prediction
+        # Predict
         prob_home_win = my_model.predict_single_game(
             team_home=team_home,
             team_away=team_away,
@@ -77,30 +70,25 @@ def main():
         )
         y_probs.append(prob_home_win)
 
-        # If we have actual scores, figure out if the home team won
         if has_scores:
             home_score = row["team_score_Home"]
             away_score = row["team_score_Away"]
-            actual_home_win = 1 if home_score > away_score else 0
-            y_true.append(actual_home_win)
+            y_true.append(1 if home_score > away_score else 0)
 
     y_probs = np.array(y_probs)
 
-    # -------------------------
-    # Evaluate if we have actual scores
-    # -------------------------
+    # If we have actual scores, evaluate
     if has_scores and len(y_true) == len(y_probs):
         y_true = np.array(y_true)
-        # Convert probabilities to 0/1 predictions at threshold=0.5
+        # Convert probabilities to 0/1
         y_pred = (y_probs >= 0.5).astype(int)
 
-        # Classification metrics
         accuracy = accuracy_score(y_true, y_pred)
-        brier    = brier_score_loss(y_true, y_probs)
-        ll       = log_loss(y_true, np.column_stack([1 - y_probs, y_probs]))
-        auc      = roc_auc_score(y_true, y_probs)
-        cm       = confusion_matrix(y_true, y_pred)
-        report   = classification_report(y_true, y_pred, digits=4)
+        brier = brier_score_loss(y_true, y_probs)
+        ll = log_loss(y_true, np.column_stack([1 - y_probs, y_probs]))
+        auc = roc_auc_score(y_true, y_probs)
+        cm = confusion_matrix(y_true, y_pred)
+        report = classification_report(y_true, y_pred, digits=4)
 
         print("\n=== MODEL PERFORMANCE (TEST) ===")
         print(f"Accuracy:  {accuracy:.4f}")
@@ -112,23 +100,24 @@ def main():
         print("\nClassification Report:")
         print(report)
 
-        # -------------
-        # Plot graphs
-        # -------------
-        # 1) Probability vs. actual point diff (if "home_team_score" in test_df)
-        actual_diff = test_df["team_score_Home"] - test_df["team_score_Away"]
+        # ----------------------
+        # Plot Additional Graphs
+        # ----------------------
+        # We'll create a figure with multiple subplots
 
-        plt.figure(figsize=(12, 5))
+        fig, axs = plt.subplots(2, 3, figsize=(18, 12))
+        axs = axs.ravel()
 
-        # Plot 1: Probability vs. Actual Point Difference
-        plt.subplot(1, 2, 1)
-        plt.scatter(y_probs, actual_diff, alpha=0.5)
-        plt.xlabel("Predicted Probability (Home Win)")
-        plt.ylabel("Actual Home Team Point Diff")
-        plt.title("Prediction vs. Actual Point Diff")
-        plt.grid(True)
+        # 1) Probability vs. Actual Point Difference
+        if "team_score_Home" in test_df.columns and "team_score_Away" in test_df.columns:
+            actual_diff = test_df["team_score_Home"] - test_df["team_score_Away"]
+            axs[0].scatter(y_probs, actual_diff, alpha=0.5)
+            axs[0].set_xlabel("Predicted Probability (Home Win)")
+            axs[0].set_ylabel("Actual Home Team Point Diff")
+            axs[0].set_title("Prediction vs. Actual Point Diff")
+            axs[0].grid(True)
 
-        # Plot 2: Calibration Plot
+        # 2) Calibration Plot
         n_bins = 10
         bins = np.linspace(0, 1, n_bins + 1)
         bin_indices = np.digitize(y_probs, bins) - 1
@@ -148,14 +137,60 @@ def main():
             mean_predicted.append(bin_mean_prob)
             actual_win_rates.append(bin_actual_win)
 
-        plt.subplot(1, 2, 2)
-        plt.plot(mean_predicted, actual_win_rates, 'o-', label="Actual vs. Predicted")
-        plt.plot([0, 1], [0, 1], 'k--', label="Perfect Calibration")
-        plt.xlabel("Mean Predicted Probability")
-        plt.ylabel("Actual Home Win Rate")
-        plt.title("Calibration Plot")
-        plt.legend(loc="best")
-        plt.grid(True)
+        axs[1].plot(mean_predicted, actual_win_rates, 'o-', label="Actual vs. Predicted")
+        axs[1].plot([0, 1], [0, 1], 'k--', label="Perfect Calibration")
+        axs[1].set_xlabel("Mean Predicted Probability")
+        axs[1].set_ylabel("Actual Home Win Rate")
+        axs[1].set_title("Calibration Plot")
+        axs[1].legend(loc="best")
+        axs[1].grid(True)
+
+        # 3) ROC Curve
+        fpr, tpr, thresholds_roc = roc_curve(y_true, y_probs)
+        axs[2].plot(fpr, tpr, label=f"AUC = {auc:.3f}")
+        axs[2].plot([0, 1], [0, 1], 'k--')
+        axs[2].set_xlabel("False Positive Rate")
+        axs[2].set_ylabel("True Positive Rate")
+        axs[2].set_title("ROC Curve")
+        axs[2].legend(loc="lower right")
+        axs[2].grid(True)
+
+        # 4) Precision-Recall Curve
+        precision, recall, thresholds_pr = precision_recall_curve(y_true, y_probs)
+        axs[3].plot(recall, precision, label="Precision-Recall")
+        axs[3].set_xlabel("Recall")
+        axs[3].set_ylabel("Precision")
+        axs[3].set_title("Precision-Recall Curve")
+        axs[3].legend(loc="best")
+        axs[3].grid(True)
+
+        # 5) Histogram of predicted probabilities
+        axs[4].hist(y_probs, bins=20, range=(0,1), alpha=0.7, color='g', edgecolor='k')
+        axs[4].set_xlabel("Predicted Probability (Home Win)")
+        axs[4].set_ylabel("Count")
+        axs[4].set_title("Distribution of Predictions")
+        axs[4].grid(True)
+
+        # 6) Confusion Matrix (visual)
+        # We'll make a small heatmap of cm
+        # But you can also do this in Seaborn if you want a nicer style
+        # We'll just do a text-based image for demonstration
+        axs[5].imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+        axs[5].set_title("Confusion Matrix (Visual)")
+        axs[5].set_xticks([0, 1])
+        axs[5].set_yticks([0, 1])
+        axs[5].set_xticklabels(["Pred 0", "Pred 1"])
+        axs[5].set_yticklabels(["True 0", "True 1"])
+
+        # Write the counts inside the heatmap
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                axs[5].text(j, i, str(cm[i, j]),
+                            ha="center", va="center",
+                            color="black", fontsize=12)
+
+        axs[5].set_ylabel("True label")
+        axs[5].set_xlabel("Predicted label")
 
         plt.tight_layout()
         plt.show()
