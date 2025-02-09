@@ -7,7 +7,7 @@ def main():
     games_data = GamesData(training_csv_path)
 
     # 2) Create the Model
-    model_file_path = "model_stuff.json"
+    model_file_path = "model_stuff.json" 
     my_model = Model(model_file_path=model_file_path, games_data=games_data)
 
     # 3) Generate (train) the model, doing hyperparameter search

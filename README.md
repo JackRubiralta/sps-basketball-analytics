@@ -1,2 +1,3 @@
-Make elo system (but have elo vector where the normal is the actual elo)
-# idea is that the elo vector says how good a team is like as an encoding 
+look at similar teams and there games when playing the team we are comparing 
+
+improve the team rating stat even more 

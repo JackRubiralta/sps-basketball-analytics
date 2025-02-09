@@ -48,22 +48,23 @@ class Model:
         rf_clf = RandomForestClassifier(random_state=42)
         meta_learner = LogisticRegression(max_iter=2000)
 
+        # Optional hyperparam search
         if do_hyperparam_search:
             # Hyperparameter search for XGB
             xgb_params = {
-                "n_estimators":    [100, 200, 300, 500, 800, 1000],
-                "max_depth":       [3, 4, 6, 8, 10],
-                "learning_rate":   [0.01, 0.02, 0.05, 0.1],
+                "n_estimators":    [100, 200, 300, 500],
+                "max_depth":       [3, 4, 6, 8],
+                "learning_rate":   [0.01, 0.05, 0.1],
                 "subsample":       [0.6, 0.8, 1.0],
                 "colsample_bytree":[0.6, 0.8, 1.0],
-                "gamma":           [0, 0.1, 0.2, 0.5],
-                "reg_lambda":      [1, 2, 5, 10],
-                "reg_alpha":       [0, 0.1, 1, 2]
+                "gamma":           [0, 0.1, 0.2],
+                "reg_lambda":      [1, 2, 5],
+                "reg_alpha":       [0, 0.1, 1]
             }
             xgb_search = RandomizedSearchCV(
                 estimator=xgb_clf,
                 param_distributions=xgb_params,
-                n_iter=30,  # increase for more thorough search
+                n_iter=10,  # can increase for more thorough search
                 scoring='roc_auc',
                 cv=3,
                 random_state=42,
@@ -76,14 +77,14 @@ class Model:
 
             # Hyperparameter search for RF
             rf_params = {
-                "n_estimators": [100, 200, 500, 800],
-                "max_depth":    [None, 5, 10, 20, 30],
+                "n_estimators": [100, 200, 500],
+                "max_depth":    [None, 5, 10, 20],
                 "max_features": ["sqrt", "log2", None]
             }
             rf_search = RandomizedSearchCV(
                 estimator=rf_clf,
                 param_distributions=rf_params,
-                n_iter=20,
+                n_iter=5,
                 scoring='roc_auc',
                 cv=3,
                 random_state=42,
@@ -180,3 +181,4 @@ class Model:
         """
         self.model = joblib.load(self.model_file_path)
         print(f"Model loaded from '{self.model_file_path}'")
+
