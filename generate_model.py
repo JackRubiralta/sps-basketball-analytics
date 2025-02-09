@@ -1,5 +1,3 @@
-# generate_model.py
-
 from model import Model
 from games_data import GamesData
 

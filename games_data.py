@@ -1,5 +1,3 @@
-# games_data.py
-
 import pandas as pd
 import numpy as np
 import os
@@ -101,7 +99,6 @@ class GamesData:
         3) Return (X, y)
         """
         # 1) Build a DataFrame with the base features
-        # (We must ensure these columns exist in merged_df)
         for col in self.base_feature_cols:
             if col not in merged_df.columns:
                 merged_df[col] = 0.0  # fill missing
@@ -113,40 +110,32 @@ class GamesData:
         # We'll do them for each stat in self._cols_to_avg
         # e.g. diff_FGA_2 = home_avg_FGA_2 - away_avg_FGA_2
         #      ratio_FGA_2 = (home_avg_FGA_2 + 1) / (away_avg_FGA_2 + 1)
-        # The +1 avoids division by zero
+        # The +1 or +1e-6 avoids division by zero
         diff_ratio_features = []
         diff_ratio_names = []
 
-        # We'll build them for each row in X_base
-        # We'll need the columns in the correct order:
-        # home_avg_FGA_2 is index 0 in the first block,
-        # away_avg_FGA_2 is index (len(self._cols_to_avg)) in the second block
-        # Then we have rest/travel. We'll isolate stats first to do diffs
-
-        n_stats = len(self._cols_to_avg)  # e.g. 13
+        n_stats = len(self._cols_to_avg)
         # Indices for home stats: 0..(n_stats-1)
         # Indices for away stats: n_stats..(2*n_stats-1)
 
         for i_row in range(X_base.shape[0]):
             row_vals = X_base[i_row]
-            # We'll create a place to store difference+ratio for each stat
             row_diff_ratio = []
             for i_stat in range(n_stats):
                 home_val = row_vals[i_stat]
                 away_val = row_vals[n_stats + i_stat]
 
                 diff = home_val - away_val
-                ratio = (home_val + 1e-6) / (away_val + 1e-6)  # avoid zero
+                ratio = (home_val + 1e-6) / (away_val + 1e-6)
 
                 row_diff_ratio.append(diff)
                 row_diff_ratio.append(ratio)
 
             diff_ratio_features.append(row_diff_ratio)
 
-        # Build the final array of difference & ratio features
         diff_ratio_features = np.array(diff_ratio_features, dtype=np.float32)
 
-        # Now let's define the names for these columns
+        # Now define names for these columns
         for stat_col in self._cols_to_avg:
             diff_name = f"diff_{stat_col}"
             ratio_name = f"ratio_{stat_col}"
@@ -157,7 +146,6 @@ class GamesData:
         X = np.concatenate([X_base, diff_ratio_features], axis=1)
 
         # Update self.FEATURE_COLS if not done yet
-        # Base plus the new difference & ratio columns
         if len(self.FEATURE_COLS) == len(self.base_feature_cols):
             self.FEATURE_COLS += diff_ratio_names
 
@@ -176,7 +164,6 @@ class GamesData:
         2) Insert into base feature array
         3) Add difference & ratio features
         """
-        # 1) Retrieve home/away average stats
         home_avgs = self.team_avgs[self.team_avgs["team"] == team_home]
         away_avgs = self.team_avgs[self.team_avgs["team"] == team_away]
 
@@ -185,13 +172,13 @@ class GamesData:
         if away_avgs.empty:
             raise ValueError(f"No average stats found for away team '{team_away}'")
 
-        # For convenience, let's create a dictionary of required fields
         features_dict = {}
 
         # Insert home avg stats
         for col in self._cols_to_avg:
             home_val = float(home_avgs.iloc[0][f"avg_{col}"])
             features_dict[f"home_avg_{col}"] = home_val
+
         # Insert away avg stats
         for col in self._cols_to_avg:
             away_val = float(away_avgs.iloc[0][f"avg_{col}"])
@@ -210,13 +197,12 @@ class GamesData:
 
         row_base = np.array(row_base, dtype=np.float32).reshape(1, -1)
 
-        # 2) Now build difference+ratio features for the single row
+        # Add difference+ratio features
         n_stats = len(self._cols_to_avg)
         diffratio_row = []
         for i_stat, stat_col in enumerate(self._cols_to_avg):
             home_val = row_base[0][i_stat]
             away_val = row_base[0][n_stats + i_stat]
-
             diff = home_val - away_val
             ratio = (home_val + 1e-6) / (away_val + 1e-6)
             diffratio_row.append(diff)
@@ -224,6 +210,5 @@ class GamesData:
 
         diffratio_array = np.array(diffratio_row, dtype=np.float32).reshape(1, -1)
 
-        # 3) Concatenate base + difference/ratio
         X_single = np.concatenate([row_base, diffratio_array], axis=1)
         return X_single

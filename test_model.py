@@ -1,5 +1,3 @@
-# test_model.py
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -103,8 +101,6 @@ def main():
         # ----------------------
         # Plot Additional Graphs
         # ----------------------
-        # We'll create a figure with multiple subplots
-
         fig, axs = plt.subplots(2, 3, figsize=(18, 12))
         axs = axs.ravel()
 
@@ -172,9 +168,6 @@ def main():
         axs[4].grid(True)
 
         # 6) Confusion Matrix (visual)
-        # We'll make a small heatmap of cm
-        # But you can also do this in Seaborn if you want a nicer style
-        # We'll just do a text-based image for demonstration
         axs[5].imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
         axs[5].set_title("Confusion Matrix (Visual)")
         axs[5].set_xticks([0, 1])
@@ -182,7 +175,6 @@ def main():
         axs[5].set_xticklabels(["Pred 0", "Pred 1"])
         axs[5].set_yticklabels(["True 0", "True 1"])
 
-        # Write the counts inside the heatmap
         for i in range(cm.shape[0]):
             for j in range(cm.shape[1]):
                 axs[5].text(j, i, str(cm[i, j]),
