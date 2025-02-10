@@ -181,4 +181,3 @@ class Model:
         """
         self.model = joblib.load(self.model_file_path)
         print(f"Model loaded from '{self.model_file_path}'")
-
