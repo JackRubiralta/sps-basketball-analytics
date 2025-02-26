@@ -14,6 +14,7 @@
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{minted}
+\usepackage{seqsplit}
 
 \geometry{letterpaper, margin=1in}
 
@@ -66,41 +67,41 @@ The repository where the code is stored: \url{https://github.com/JackRubiralta/s
 % DATA INGESTION AND STRUCTURE
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Data Ingestion and Structure}
-We assume a CSV file, \texttt{games\_data.csv}, where each row represents one team's performance in a particular game. Consequently, every actual game yields \emph{two} rows: one for the home team, one for the away team. Notable columns include:
+We assume a CSV file, \seqsplit{games\_data.csv}, where each row represents one team's performance in a particular game. Consequently, every actual game yields \emph{two} rows: one for the home team, one for the away team. Notable columns include:
 
 \begin{itemize}[noitemsep]
-    \item \texttt{game\_id, game\_date, team}: Identifiers for the game and the specific team.
-    \item \texttt{FGA\_2, FGM\_2, FGA\_3, FGM\_3, FTA, FTM}: Basic box-score shooting stats (attempts and makes).
-    \item \texttt{AST, BLK, STL, TOV}: Additional stats capturing assists, blocks, steals, and turnovers.
-    \item \texttt{DREB, OREB, F\_personal}: Rebounds and personal fouls.
-    \item \texttt{team\_score, opponent\_team\_score}: Final scoreboard result.
-    \item \texttt{home\_away}: Categorical variable (\texttt{"home"} or \texttt{"away"}).
-    \item \texttt{rest\_days, travel\_dist}: Additional context, e.g., how many days of rest a team had prior to this game and how far the team traveled.
+    \item \seqsplit{game\_id, game\_date, team}: Identifiers for the game and the specific team.
+    \item \seqsplit{FGA\_2, FGM\_2, FGA\_3, FGM\_3, FTA, FTM}: Basic box-score shooting stats (attempts and makes).
+    \item \seqsplit{AST, BLK, STL, TOV}: Additional stats capturing assists, blocks, steals, and turnovers.
+    \item \seqsplit{DREB, OREB, F\_personal}: Rebounds and personal fouls.
+    \item \seqsplit{team\_score, opponent\_team\_score}: Final scoreboard result.
+    \item \seqsplit{home\_away}: Categorical variable (\seqsplit{"home"} or \seqsplit{"away"}).
+    \item \seqsplit{rest\_days, travel\_dist}: Additional context, e.g., how many days of rest a team had prior to this game and how far the team traveled.
 \end{itemize}
 
 \noindent
 \textbf{Example CSV Rows:}
-\begin{verbatim}
+\begin{minted}[breaklines]{csv}
 game_id,game_date,team,FGA_2,FGM_2,FGA_3,FGM_3,FTA,FTM,AST,BLK,STL,TOV,TOV_team,DREB,OREB,F_tech,F_personal,team_score,opponent_team_score,largest_lead,notD1_incomplete,OT_length_min_tot,rest_days,attendance,tz_dif_H_E,prev_game_dist,home_away,home_away_NS,travel_dist
 game_2022_2011,12/30/2021,georgia_lady_bulldogs,50,22,11,5,6,3,14,7,7,18,0,25,11,0,18,62,68,1.0,False,,9.0,3241.0,0.0,0.0,home,1,0.0
 game_2022_2011,12/30/2021,lsu_tigers,50,24,11,4,15,8,15,2,15,14,2,25,11,0,7,68,62,14.0,False,,3.0,3241.0,0.0,824.0,away,-1,824.0
-\end{verbatim}
-\subsection{Class \texttt{GamesData} for Data Management}
-\texttt{GamesData} serves as a robust data handler:
+\end{minted}
+\subsection{Class \seqsplit{GamesData} for Data Management}
+\seqsplit{GamesData} serves as a robust data handler:
 \begin{enumerate}[label=\arabic*)]
-    \item \textbf{Load CSV and Verify Existence}: Raises a \texttt{FileNotFoundError} if the path is invalid.
+    \item \textbf{Load CSV and Verify Existence}: Raises a \seqsplit{FileNotFoundError} if the path is invalid.
     \item \textbf{Compute Team Averages}: Aggregates basic stats across all games for each team.
     \item \textbf{Compute Win Percentage (\(\text{WP}\)) and Strength-of-Schedule (\(\text{SoS}\))}: 
         \begin{itemize}[noitemsep]
-            \item \texttt{WP} = fraction of games won
-            \item \texttt{SoS} = average WP of opponents
+            \item \seqsplit{WP} = fraction of games won
+            \item \seqsplit{SoS} = average WP of opponents
         \end{itemize}
-    \item \textbf{Feature Column Definitions}: Maintains lists of columns (e.g., \texttt{\_cols\_to\_avg}) for constructing final features.
+    \item \textbf{Feature Column Definitions}: Maintains lists of columns (e.g., \seqsplit{\_cols\_to\_avg}) for constructing final features.
 \end{enumerate}
 
-For advanced users, these methods can be extended to incorporate rolling averages, time-weighted metrics, or contextual stats (like rank of opponents). Below is an excerpt showing how \texttt{GamesData} is initialized to accomplish this:
+Below is an excerpt showing how \seqsplit{GamesData} is initialized to accomplish this:
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def __init__(self, csv_path: str):
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"{csv_path} does not exist.")
@@ -120,7 +121,7 @@ def __init__(self, csv_path: str):
 In this code:
 \begin{itemize}
     \item We immediately \textbf{load the CSV} into a pandas DataFrame.
-    \item We then \textbf{compute team-level averages} and advanced metrics (win percentage, SoS) by calling \texttt{\_compute\_team\_averages}.
+    \item We then \textbf{compute team-level averages} and advanced metrics (win percentage, SoS) by calling \seqsplit{\_compute\_team\_averages}.
     \item We also define lists of columns that will be used to build the final feature matrix.
 \end{itemize}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -129,7 +130,7 @@ In this code:
 \section{Advanced Feature Engineering}
 
 \subsection{Team Averages, Win Percentage, SoS}
-We group the data by \texttt{team} to compute:
+We group the data by \seqsplit{team} to compute:
 \begin{align*}
 \text{avg\_FGA\_2} &= \frac{1}{n}\sum \text{FGA\_2}, \\
 \text{avg\_FGM\_2} &= \frac{1}{n}\sum \text{FGM\_2}, \quad \ldots
@@ -153,7 +154,7 @@ We define
 \]
 where \(\mathcal{G}\) is the set of games in which team \(T\) faces an opponent \(O\). This provides a measure of difficulty of each team’s schedule.
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def _compute_team_averages(self, df: pd.DataFrame) -> pd.DataFrame:
     """
     1) Group by 'team' and compute mean of self._cols_to_avg (basic stats)
@@ -182,24 +183,24 @@ def _compute_team_averages(self, df: pd.DataFrame) -> pd.DataFrame:
 \noindent
 This snippet demonstrates:
 \begin{enumerate}[label=\roman*)]
-    \item How we compute the \emph{mean} of columns like \(\texttt{FGA\_2}\), \(\texttt{FGM\_2}\), etc.\@ per team.
-    \item Assign an indicator \texttt{win} based on the scoreboard.
-    \item Calculate each team's \texttt{team\_win\_pct} via the mean of \(\texttt{win}\).
+    \item How we compute the \emph{mean} of columns like \(\seqsplit{FGA\_2}\), \(\seqsplit{FGM\_2}\), etc.\@ per team.
+    \item Assign an indicator \seqsplit{win} based on the scoreboard.
+    \item Calculate each team's \seqsplit{team\_win\_pct} via the mean of \(\seqsplit{win}\).
 \end{enumerate}
-Further steps then identify each team's opponents and average their \(\texttt{win\_pct}\) to get \(\texttt{team\_sos}\).
+Further steps then identify each team's opponents and average their \(\seqsplit{win\_pct}\) to get \(\seqsplit{team\_sos}\).
 
 \subsection{Merging Home and Away Rows}
 To create a single row per actual game:
 \begin{enumerate}[label=\arabic*)]
     \item Split the DataFrame into \(\mathbf{H}\) (home rows) and \(\mathbf{A}\) (away rows).
-    \item Merge on \(\texttt{game\_id}\), creating columns with prefixes \(\text{home\_}\) and \(\text{away\_}\).
+    \item Merge on \(\seqsplit{game\_id}\), creating columns with prefixes \(\text{home\_}\) and \(\text{away\_}\).
     \item The target label is 
     \[
     \text{home\_team\_won} = \mathbf{1}\{\text{home\_team\_score} > \text{away\_team\_score}\}.
     \]
 \end{enumerate}
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def prepare_training_data(self) -> pd.DataFrame:
     """
     Merges home & away rows into one row per game, storing
@@ -224,9 +225,9 @@ def prepare_training_data(self) -> pd.DataFrame:
 \noindent
 Here:
 \begin{itemize}
-    \item \texttt{df\_home} and \texttt{df\_away} subsets correspond to \texttt{home\_away == "home"} or \texttt{"away"}.
-    \item We \emph{merge} them by \texttt{game\_id}, so each row in the final \texttt{merged} DataFrame holds data for one game.
-    \item A binary label \texttt{home\_team\_won} is added for subsequent training.
+    \item \seqsplit{df\_home} and \seqsplit{df\_away} subsets correspond to \seqsplit{home\_away == "home"} or \seqsplit{"away"}.
+    \item We \emph{merge} them by \seqsplit{game\_id}, so each row in the final \seqsplit{merged} DataFrame holds data for one game.
+    \item A binary label \seqsplit{home\_team\_won} is added for subsequent training.
 \end{itemize}
 
 \subsection{Difference and Ratio Features}
@@ -238,7 +239,7 @@ In advanced sports analytics, direct head-to-head metrics often matter more than
 \]
 Here, \(X\) can be any of \(\{ \text{avg\_AST}, \text{team\_win\_pct}, \text{team\_sos}, \ldots \}\). The small constant avoids division by zero. Below is an example illustrating how these features are appended:
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def get_feature_and_label_arrays(self, merged_df: pd.DataFrame, 
                                  label_col: str = "home_team_won"):
     # 1) Base features
@@ -272,9 +273,9 @@ def get_feature_and_label_arrays(self, merged_df: pd.DataFrame,
 \noindent
 \textbf{Key Points:}
 \begin{itemize}
-    \item We first extract \texttt{X\_base} from columns like \texttt{home\_avg\_FGA\_2}, \texttt{away\_avg\_FGA\_2}, \texttt{home\_team\_win\_pct}, etc.
-    \item We compute \(\texttt{diff\_X}\) and \(\texttt{ratio\_X}\) for each relevant statistical category.
-    \item Finally, we concatenate these difference/ratio columns to the end of \texttt{X\_base}.
+    \item We first extract \seqsplit{X\_base} from columns like \seqsplit{home\_avg\_FGA\_2}, \seqsplit{away\_avg\_FGA\_2}, \seqsplit{home\_team\_win\_pct}, etc.
+    \item We compute \(\seqsplit{diff\_X}\) and \(\seqsplit{ratio\_X}\) for each relevant statistical category.
+    \item Finally, we concatenate these difference/ratio columns to the end of \seqsplit{X\_base}.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -286,7 +287,7 @@ Stacking (also known as stacked generalization) is an ensemble technique that co
 \subsection{Sub-Model A: XGBoost (Advanced Gradient Boosting)}
 
 \subsubsection{Gradient Boosting Theory}
-Let \(\{(x_i, y_i)\}_{i=1}^N\) be our training set with \(x_i \in \mathbb{R}^d\) and \(y_i \in \{0,1\}\). In gradient boosting \cite{friedman2001greedy}, we fit an additive model of the form:
+Let \(\{(x_i, y_i)\}_{i=1}^N\) be our training set with \(x_i \in \mathbb{R}^d\) and \(y_i \in \{0,1\}\). In gradient boosting, we fit an additive model of the form:
 \[
 F_0(x) = \arg\min_\gamma \sum_{i=1}^N \ell(y_i, \gamma),
 \]
@@ -300,20 +301,20 @@ where \(h_m\) is a weak learner (usually a small decision tree), and \(\nu\) is 
 XGBoost (eXtreme Gradient Boosting) extends gradient boosting with:
 \begin{itemize}[noitemsep]
     \item \textbf{Second-order approximations of the loss} for tree splitting: This uses both first- and second-order derivatives to select the best split (rather than just first-order).
-    \item \textbf{Regularization Terms}: XGBoost adds \(L_1\) (Lasso) and \(L_2\) (Ridge) regularization on the leaf weights, effectively controlling model complexity. This is parameterized by \(\texttt{reg\_alpha}\) and \(\texttt{reg\_lambda}\).
-    \item \textbf{Column Subsampling} (\(\texttt{colsample\_bytree}\)): Helps reduce correlation among trees.
+    \item \textbf{Regularization Terms}: XGBoost adds \(L_1\) (Lasso) and \(L_2\) (Ridge) regularization on the leaf weights, effectively controlling model complexity. This is parameterized by \(\seqsplit{reg\_alpha}\) and \(\seqsplit{reg\_lambda}\).
+    \item \textbf{Column Subsampling} (\(\seqsplit{colsample\_bytree}\)): Helps reduce correlation among trees.
     \item \textbf{Efficient Implementation}: Designed for high performance, leveraging out-of-core computation if necessary.
 \end{itemize}
 
 \subsubsection{Key Parameters}
 \begin{itemize}[noitemsep]
-    \item \(\texttt{n\_estimators}\): Number of boosting rounds (trees).
-    \item \(\texttt{max\_depth}\): Maximum depth of each tree (controls model expressiveness).
-    \item \(\texttt{learning\_rate}\) (\(\nu\)): Shrinks the contribution of each new tree.
-    \item \(\gamma\) (or \(\texttt{min\_split\_loss}\)): Minimum loss reduction required for a partition to occur (discourages overfitting).
+    \item \(\seqsplit{n\_estimators}\): Number of boosting rounds (trees).
+    \item \(\seqsplit{max\_depth}\): Maximum depth of each tree (controls model expressiveness).
+    \item \(\seqsplit{learning\_rate}\) (\(\nu\)): Shrinks the contribution of each new tree.
+    \item \(\gamma\) (or \(\seqsplit{min\_split\_loss}\)): Minimum loss reduction required for a partition to occur (discourages overfitting).
 \end{itemize}
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 # Excerpt showing XGBoost creation in Model.generate_model
 xgb_clf = XGBClassifier(
     eval_metric='logloss',
@@ -321,7 +322,7 @@ xgb_clf = XGBClassifier(
 )
 \end{minted}
 
-\noindent In the above snippet, we instantiate our XGBoost classifier with a specific \(\texttt{eval\_metric='logloss'}\) and a fixed \(\texttt{random\_state}\). This ensures reproducibility and that the final objective is aligned with typical binary classification (log loss).
+\noindent In the above snippet, we instantiate our XGBoost classifier with a specific \(\seqsplit{eval\_metric='logloss'}\) and a fixed \(\seqsplit{random\_state}\). This ensures reproducibility and that the final objective is aligned with typical binary classification (log loss).
 
 \subsection{Sub-Model B: Random Forest (Bagging Ensemble of Trees)}
 
@@ -333,21 +334,21 @@ xgb_clf = XGBClassifier(
 \end{itemize}
 
 \subsubsection{Random Forest Enhancements}
-Breiman’s Random Forest \cite{breiman2001random} introduces further randomness by randomly selecting a subset of features at each split (controlled by \(\texttt{max\_features}\)). This mechanism reduces correlation among trees, often improving generalization.
+Breiman’s Random Forest introduces further randomness by randomly selecting a subset of features at each split (controlled by \(\seqsplit{max\_features}\)). This mechanism reduces correlation among trees, often improving generalization.
 
 \subsubsection{Key Parameters}
 \begin{itemize}[noitemsep]
-    \item \(\texttt{n\_estimators}\): Number of trees.
-    \item \(\texttt{max\_depth}\): A limit on tree depth to prevent excessive overfitting.
-    \item \(\texttt{max\_features}\): Determines how many features are considered at each split (e.g., \(\sqrt{d}\) or \(\log_2 d\)).
+    \item \(\seqsplit{n\_estimators}\): Number of trees.
+    \item \(\seqsplit{max\_depth}\): A limit on tree depth to prevent excessive overfitting.
+    \item \(\seqsplit{max\_features}\): Determines how many features are considered at each split (e.g., \(\sqrt{d}\) or \(\log_2 d\)).
 \end{itemize}
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 # Excerpt showing Random Forest creation in Model.generate_model
 rf_clf = RandomForestClassifier(random_state=42)
 \end{minted}
 
-\noindent Here, we see how the \(\texttt{RandomForestClassifier}\) is created with a fixed \(\texttt{random\_state}\). Additional parameters (like \(\texttt{n\_estimators}\) or \(\texttt{max\_depth}\)) can be passed or tuned via hyperparameter searches.
+\noindent Here, we see how the \(\seqsplit{RandomForestClassifier}\) is created with a fixed \(\seqsplit{random\_state}\). Additional parameters (like \(\seqsplit{n\_estimators}\) or \(\seqsplit{max\_depth}\)) can be passed or tuned via hyperparameter searches.
 
 \subsection{Meta-Learner: Logistic Regression}
 
@@ -365,12 +366,12 @@ where \(z_i = \beta_0 + \sum_{j=1}^k \beta_j x_{ij}\) and \(\sigma(\cdot)\) is t
     \item \textbf{Simplicity in High-Level Model Architecture}: Minimizes overfitting risk at the meta-level, ensuring each base model’s predictions are used in a way that improves generalization.
 \end{enumerate}
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 # Excerpt showing Logistic Regression creation in Model.generate_model
 meta_learner = LogisticRegression(max_iter=2000)
 \end{minted}
 
-\noindent We specify \(\texttt{max\_iter=2000}\) to ensure logistic regression has enough iterations to converge, especially with potentially complex stacking outputs.
+\noindent We specify \(\seqsplit{max\_iter=2000}\) to ensure logistic regression has enough iterations to converge, especially with potentially complex stacking outputs.
 
 \subsection{Stacking Mechanism and Synergy}
 Once the base models (XGBoost, Random Forest) are trained, the meta-learner (Logistic Regression) is fit on:
@@ -382,9 +383,9 @@ where \(p_{\text{xgb},i}, p_{\text{rf},i}\) are the predicted probabilities of a
 If XGBoost systematically underestimates certain patterns but Random Forest overestimates them, logistic regression may find an appropriate weighting scheme for combining these predictions. By learning a linear combination (plus intercept) of these base outputs, the model can correct biases and exploit synergy between the learners.
 
 \subsection{Example: Constructing the Stacking Classifier in Code}
-Below, we show a snippet from the \texttt{Model.generate\_model} method that builds the \texttt{StackingClassifier} with XGBoost, Random Forest, and Logistic Regression. Note that some lines are omitted for brevity:
+Below, we show a snippet from the \seqsplit{Model.generate\_model} method that builds the \seqsplit{StackingClassifier} with XGBoost, Random Forest, and Logistic Regression. Note that some lines are omitted for brevity:
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def generate_model(self, do_hyperparam_search=True):
     # 1) Prepare data
     merged_df = self.games_data.prepare_training_data()
@@ -422,10 +423,10 @@ def generate_model(self, do_hyperparam_search=True):
 \noindent
 \textbf{Key Observations}:
 \begin{itemize}
-    \item Two base learners: \(\texttt{xgb\_clf}\) (XGBClassifier) and \(\texttt{rf\_clf}\) (RandomForestClassifier).
-    \item \texttt{final\_estimator} is \(\texttt{meta\_learner}\), i.e., logistic regression.
-    \item By setting \(\texttt{cv}=5\), we use 5-fold cross-validation to generate out-of-fold predictions for stacking.
-    \item We assign \(\texttt{self.model} = \texttt{stack\_clf}\) so the final stacked model is accessible throughout the class.
+    \item Two base learners: \(\seqsplit{xgb\_clf}\) (XGBClassifier) and \(\seqsplit{rf\_clf}\) (RandomForestClassifier).
+    \item \seqsplit{final\_estimator} is \(\seqsplit{meta\_learner}\), i.e., logistic regression.
+    \item By setting \(\seqsplit{cv}=5\), we use 5-fold cross-validation to generate out-of-fold predictions for stacking.
+    \item We assign \(\seqsplit{self.model} = \seqsplit{stack\_clf}\) so the final stacked model is accessible throughout the class.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -444,16 +445,16 @@ We use \textbf{RandomizedSearchCV} due to the relatively large hyperparameter sp
 The pipeline uses \(k\)-fold (e.g., 3- or 5-fold) cross-validation to evaluate each parameter setting. Each fold’s data acts as a local hold-out set, ensuring robust estimation of out-of-sample performance.
 
 \subsection{Performance Metric: ROC AUC \emph{vs.} Others}
-We often optimize ROC AUC (\(\texttt{scoring='roc\_auc'}\)). Alternatives include:
+We often optimize ROC AUC (\(\seqsplit{scoring='roc\_auc'}\)). Alternatives include:
 \begin{itemize}[noitemsep]
     \item \textbf{Average Precision} (for imbalanced data).
     \item \textbf{Log Loss} (if probability calibration is paramount).
 \end{itemize}
 
 \subsection{Code Excerpt: Hyperparameter Search}
-Below is a more extensive excerpt showing how one might incorporate \texttt{RandomizedSearchCV} for XGBoost and Random Forest within \texttt{generate\_model}. This demonstrates how the \emph{best} hyperparameters are selected and the resulting estimators are used in the stacking:
+Below is a more extensive excerpt showing how one might incorporate \seqsplit{RandomizedSearchCV} for XGBoost and Random Forest within \seqsplit{generate\_model}. This demonstrates how the \emph{best} hyperparameters are selected and the resulting estimators are used in the stacking:
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 if do_hyperparam_search:
     # Hyperparameters for XGB
     xgb_params = {
@@ -504,9 +505,9 @@ if do_hyperparam_search:
 \noindent
 \textbf{Summary of Key Steps}:
 \begin{itemize}
-    \item \textbf{Parameter dictionaries} define potential values for \(\texttt{XGBClassifier}\) and \(\texttt{RandomForestClassifier}\).
-    \item \(\texttt{RandomizedSearchCV}\) iterates over a subset of these values, using cross-validation (here, \(\texttt{cv=3}\)) to assess performance.
-    \item The best-found estimators are stored back into \(\texttt{xgb\_clf}\) and \(\texttt{rf\_clf}\) for use in stacking.
+    \item \textbf{Parameter dictionaries} define potential values for \(\seqsplit{XGBClassifier}\) and \(\seqsplit{RandomForestClassifier}\).
+    \item \(\seqsplit{RandomizedSearchCV}\) iterates over a subset of these values, using cross-validation (here, \(\seqsplit{cv=3}\)) to assess performance.
+    \item The best-found estimators are stored back into \(\seqsplit{xgb\_clf}\) and \(\seqsplit{rf\_clf}\) for use in stacking.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -543,14 +544,14 @@ To predict a single future matchup:
     \item Retrieve the aggregated stats (\(\text{avg\_FGA\_2}\), \(\text{team\_win\_pct}\), etc.) for both home and away teams.
     \item Incorporate rest days, travel distance, or any other contextual features.
     \item Construct difference/ratio features.
-    \item Pass the resulting feature vector through the stacking ensemble’s \texttt{predict\_proba}.
+    \item Pass the resulting feature vector through the stacking ensemble’s \seqsplit{predict\_proba}.
     \item Output the final probability that the home team wins.
 \end{enumerate}
 
 \subsubsection{Illustrative Code for Single-Game Prediction}
-Below is how \texttt{predict\_single\_game} might be implemented within our \texttt{Model} class, showcasing the creation of a single-row feature vector. We see how the synergy of \(\texttt{build\_prediction\_features}\) ensures consistent feature engineering:
+Below is how \seqsplit{predict\_single\_game} might be implemented within our \seqsplit{Model} class, showcasing the creation of a single-row feature vector. We see how the synergy of \(\seqsplit{build\_prediction\_features}\) ensures consistent feature engineering:
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def predict_single_game(self, team_home: str, team_away: str,
                         home_rest_days: float, home_travel_dist: float,
                         away_rest_days: float, away_travel_dist: float) -> float:
@@ -572,22 +573,22 @@ def predict_single_game(self, team_home: str, team_away: str,
 \noindent
 \textbf{Key Observations:}
 \begin{itemize}
-    \item We generate a single-row feature vector with \(\texttt{games\_data.build\_prediction\_features}\), preserving the same structure used during training.
-    \item \(\texttt{predict\_proba}\) yields class probabilities, of which the second column is the probability of \(\texttt{home\_team\_won} = 1\).
+    \item We generate a single-row feature vector with \(\seqsplit{games\_data.build\_prediction\_features}\), preserving the same structure used during training.
+    \item \(\seqsplit{predict\_proba}\) yields class probabilities, of which the second column is the probability of \(\seqsplit{home\_team\_won} = 1\).
 \end{itemize}
 
 \subsection{Batch Predictions}
 For large-scale forecasting (e.g., entire tournament brackets):
 \begin{itemize}[noitemsep]
     \item Construct a matrix \(\mathbf{X}_{\text{new}}\) with each row corresponding to a new matchup.
-    \item Use \(\texttt{model.predict\_batch}(\mathbf{X}_{\text{new}})\) to retrieve an array of probabilities.
+    \item Use \(\seqsplit{model.predict\_batch}(\mathbf{X}_{\text{new}})\) to retrieve an array of probabilities.
     \item Optionally apply domain-specific thresholds or post-processing.
 \end{itemize}
 
 \subsubsection{Batch Prediction Code Example}
 If you have already built your feature matrix \(\mathbf{X}_{\text{new}}\), you can simply call:
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 def predict_batch(self, X: np.ndarray) -> np.ndarray:
     """
     For batch predictions where X is already constructed,
@@ -609,11 +610,11 @@ This method bypasses the repeated feature engineering steps because it expects \
 \section{Evaluation and Testing}
 \label{sec:evaluation_testing}
 \subsection{Testing Methodology and Code Excerpts}
-To ensure consistency and rigorous evaluation, our testing procedure is implemented in a script called \texttt{test\_model.py}. Below we describe the core steps:
+To ensure consistency and rigorous evaluation, our testing procedure is implemented in a script called \seqsplit{test\_model.py}. Below we describe the core steps:
 
 \subsubsection{Data Preparation and Model Loading}
-We initialize the feature-engineering object \texttt{GamesData} and then load (or train) a stacking model via the \texttt{Model} class:
-\begin{minted}{python}
+We initialize the feature-engineering object \seqsplit{GamesData} and then load (or train) a stacking model via the \seqsplit{Model} class:
+\begin{minted}[breaklines]{python}
 training_csv_path = "games_data.csv"
 games_data = GamesData(training_csv_path)
 
@@ -626,13 +627,13 @@ if my_model.model is None:
 \subsubsection{Evaluation on a Held-Out Test Split}
 The main testing flow:
 \begin{enumerate}[label=\arabic*)]
-    \item \textbf{Prepare merged data}, including \texttt{point\_diff} for analysis.
+    \item \textbf{Prepare merged data}, including \seqsplit{point\_diff} for analysis.
     \item \textbf{Build feature matrix} \(X\) and label vector \(y\).
     \item \textbf{Split into training and testing} sets with 80--20 partition (stratified by \(y\)).
     \item \textbf{Predict} on the test set and \textbf{compute metrics}.
 \end{enumerate}
 
-\begin{minted}{python}
+\begin{minted}[breaklines]{python}
 merged_df = games_data.prepare_training_data()
 merged_df["point_diff"] = merged_df["home_team_score"] - merged_df["away_team_score"]
 
