@@ -13,6 +13,7 @@
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{minted}
 
 \geometry{letterpaper, margin=1in}
 
@@ -28,6 +29,8 @@
   commentstyle=\color{gray},
   stringstyle=\color{red}
 }
+
+
 
 \title{Basketball Games Prediction Model Methodology}
 \author{Jack Rubiralta, Jaden Patel, Kyan Hands, William Carten}
@@ -56,7 +59,7 @@ Key highlights and advanced topics covered:
     \item Hyperparameter optimization using \textbf{RandomizedSearchCV}
     \item Extended discussion of stacking ensemble theory and meta-learning synergy
 \end{itemize}
-
+\noindent
 The repository where the code is stored: \url{https://github.com/JackRubiralta/sps-basketball-analytics}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -77,11 +80,11 @@ We assume a CSV file, \texttt{games\_data.csv}, where each row represents one te
 
 \noindent
 \textbf{Example CSV Rows:}
-\begin{lstlisting}[language=csv]
+\begin{verbatim}
 game_id,game_date,team,FGA_2,FGM_2,FGA_3,FGM_3,FTA,FTM,AST,BLK,STL,TOV,TOV_team,DREB,OREB,F_tech,F_personal,team_score,opponent_team_score,largest_lead,notD1_incomplete,OT_length_min_tot,rest_days,attendance,tz_dif_H_E,prev_game_dist,home_away,home_away_NS,travel_dist
 game_2022_2011,12/30/2021,georgia_lady_bulldogs,50,22,11,5,6,3,14,7,7,18,0,25,11,0,18,62,68,1.0,False,,9.0,3241.0,0.0,0.0,home,1,0.0
 game_2022_2011,12/30/2021,lsu_tigers,50,24,11,4,15,8,15,2,15,14,2,25,11,0,7,68,62,14.0,False,,3.0,3241.0,0.0,824.0,away,-1,824.0
-\end{lstlisting}
+\end{verbatim}
 \subsection{Class \texttt{GamesData} for Data Management}
 \texttt{GamesData} serves as a robust data handler:
 \begin{enumerate}[label=\arabic*)]
@@ -97,7 +100,7 @@ game_2022_2011,12/30/2021,lsu_tigers,50,24,11,4,15,8,15,2,15,14,2,25,11,0,7,68,6
 
 For advanced users, these methods can be extended to incorporate rolling averages, time-weighted metrics, or contextual stats (like rank of opponents). Below is an excerpt showing how \texttt{GamesData} is initialized to accomplish this:
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def __init__(self, csv_path: str):
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"{csv_path} does not exist.")
@@ -111,7 +114,7 @@ def __init__(self, csv_path: str):
     # (home_avg_*), (away_avg_*), plus rest/travel
     self.base_feature_cols = []
     ...
-\end{lstlisting}
+\end{minted}
 
 \noindent
 In this code:
@@ -150,7 +153,7 @@ We define
 \]
 where \(\mathcal{G}\) is the set of games in which team \(T\) faces an opponent \(O\). This provides a measure of difficulty of each team’s schedule.
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def _compute_team_averages(self, df: pd.DataFrame) -> pd.DataFrame:
     """
     1) Group by 'team' and compute mean of self._cols_to_avg (basic stats)
@@ -174,7 +177,7 @@ def _compute_team_averages(self, df: pd.DataFrame) -> pd.DataFrame:
     )
 
     ...
-\end{lstlisting}
+\end{minted}
 
 \noindent
 This snippet demonstrates:
@@ -196,7 +199,7 @@ To create a single row per actual game:
     \]
 \end{enumerate}
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def prepare_training_data(self) -> pd.DataFrame:
     """
     Merges home & away rows into one row per game, storing
@@ -216,7 +219,7 @@ def prepare_training_data(self) -> pd.DataFrame:
     # Label: did the home team win?
     merged["home_team_won"] = (merged["home_team_score"] > merged["away_team_score"]).astype(int)
     return merged
-\end{lstlisting}
+\end{minted}
 
 \noindent
 Here:
@@ -235,7 +238,7 @@ In advanced sports analytics, direct head-to-head metrics often matter more than
 \]
 Here, \(X\) can be any of \(\{ \text{avg\_AST}, \text{team\_win\_pct}, \text{team\_sos}, \ldots \}\). The small constant avoids division by zero. Below is an example illustrating how these features are appended:
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def get_feature_and_label_arrays(self, merged_df: pd.DataFrame, 
                                  label_col: str = "home_team_won"):
     # 1) Base features
@@ -264,7 +267,7 @@ def get_feature_and_label_arrays(self, merged_df: pd.DataFrame,
     X = np.concatenate([X_base, diff_ratio_features], axis=1)
 
     return X, y
-\end{lstlisting}
+\end{minted}
 
 \noindent
 \textbf{Key Points:}
@@ -310,13 +313,13 @@ XGBoost (eXtreme Gradient Boosting) extends gradient boosting with:
     \item \(\gamma\) (or \(\texttt{min\_split\_loss}\)): Minimum loss reduction required for a partition to occur (discourages overfitting).
 \end{itemize}
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 # Excerpt showing XGBoost creation in Model.generate_model
 xgb_clf = XGBClassifier(
     eval_metric='logloss',
     random_state=42,
 )
-\end{lstlisting}
+\end{minted}
 
 \noindent In the above snippet, we instantiate our XGBoost classifier with a specific \(\texttt{eval\_metric='logloss'}\) and a fixed \(\texttt{random\_state}\). This ensures reproducibility and that the final objective is aligned with typical binary classification (log loss).
 
@@ -339,10 +342,10 @@ Breiman’s Random Forest \cite{breiman2001random} introduces further randomness
     \item \(\texttt{max\_features}\): Determines how many features are considered at each split (e.g., \(\sqrt{d}\) or \(\log_2 d\)).
 \end{itemize}
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 # Excerpt showing Random Forest creation in Model.generate_model
 rf_clf = RandomForestClassifier(random_state=42)
-\end{lstlisting}
+\end{minted}
 
 \noindent Here, we see how the \(\texttt{RandomForestClassifier}\) is created with a fixed \(\texttt{random\_state}\). Additional parameters (like \(\texttt{n\_estimators}\) or \(\texttt{max\_depth}\)) can be passed or tuned via hyperparameter searches.
 
@@ -362,10 +365,10 @@ where \(z_i = \beta_0 + \sum_{j=1}^k \beta_j x_{ij}\) and \(\sigma(\cdot)\) is t
     \item \textbf{Simplicity in High-Level Model Architecture}: Minimizes overfitting risk at the meta-level, ensuring each base model’s predictions are used in a way that improves generalization.
 \end{enumerate}
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 # Excerpt showing Logistic Regression creation in Model.generate_model
 meta_learner = LogisticRegression(max_iter=2000)
-\end{lstlisting}
+\end{minted}
 
 \noindent We specify \(\texttt{max\_iter=2000}\) to ensure logistic regression has enough iterations to converge, especially with potentially complex stacking outputs.
 
@@ -381,7 +384,7 @@ If XGBoost systematically underestimates certain patterns but Random Forest over
 \subsection{Example: Constructing the Stacking Classifier in Code}
 Below, we show a snippet from the \texttt{Model.generate\_model} method that builds the \texttt{StackingClassifier} with XGBoost, Random Forest, and Logistic Regression. Note that some lines are omitted for brevity:
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def generate_model(self, do_hyperparam_search=True):
     # 1) Prepare data
     merged_df = self.games_data.prepare_training_data()
@@ -414,7 +417,7 @@ def generate_model(self, do_hyperparam_search=True):
     # 5) Train stacking
     stack_clf.fit(X_train, y_train)
     self.model = stack_clf
-\end{lstlisting}
+\end{minted}
 
 \noindent
 \textbf{Key Observations}:
@@ -450,7 +453,7 @@ We often optimize ROC AUC (\(\texttt{scoring='roc\_auc'}\)). Alternatives includ
 \subsection{Code Excerpt: Hyperparameter Search}
 Below is a more extensive excerpt showing how one might incorporate \texttt{RandomizedSearchCV} for XGBoost and Random Forest within \texttt{generate\_model}. This demonstrates how the \emph{best} hyperparameters are selected and the resulting estimators are used in the stacking:
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 if do_hyperparam_search:
     # Hyperparameters for XGB
     xgb_params = {
@@ -496,7 +499,7 @@ if do_hyperparam_search:
     rf_search.fit(X_train, y_train)
     rf_clf = rf_search.best_estimator_
     print("Best RF params:", rf_search.best_params_)
-\end{lstlisting}
+\end{minted}
 
 \noindent
 \textbf{Summary of Key Steps}:
@@ -547,7 +550,7 @@ To predict a single future matchup:
 \subsubsection{Illustrative Code for Single-Game Prediction}
 Below is how \texttt{predict\_single\_game} might be implemented within our \texttt{Model} class, showcasing the creation of a single-row feature vector. We see how the synergy of \(\texttt{build\_prediction\_features}\) ensures consistent feature engineering:
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def predict_single_game(self, team_home: str, team_away: str,
                         home_rest_days: float, home_travel_dist: float,
                         away_rest_days: float, away_travel_dist: float) -> float:
@@ -564,7 +567,7 @@ def predict_single_game(self, team_home: str, team_away: str,
     )
     prob = self.model.predict_proba(X_single)[:, 1][0]
     return prob
-\end{lstlisting}
+\end{minted}
 
 \noindent
 \textbf{Key Observations:}
@@ -584,7 +587,7 @@ For large-scale forecasting (e.g., entire tournament brackets):
 \subsubsection{Batch Prediction Code Example}
 If you have already built your feature matrix \(\mathbf{X}_{\text{new}}\), you can simply call:
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 def predict_batch(self, X: np.ndarray) -> np.ndarray:
     """
     For batch predictions where X is already constructed,
@@ -593,7 +596,7 @@ def predict_batch(self, X: np.ndarray) -> np.ndarray:
     if self.model is None:
         raise ValueError("No model found. Please train or load a model.")
     return self.model.predict_proba(X)[:, 1]
-\end{lstlisting}
+\end{minted}
 
 \noindent
 This method bypasses the repeated feature engineering steps because it expects \(\mathbf{X}\) to be in the exact format used during training. This is especially handy for large-scale or repeated forecasts.
@@ -610,7 +613,7 @@ To ensure consistency and rigorous evaluation, our testing procedure is implemen
 
 \subsubsection{Data Preparation and Model Loading}
 We initialize the feature-engineering object \texttt{GamesData} and then load (or train) a stacking model via the \texttt{Model} class:
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 training_csv_path = "games_data.csv"
 games_data = GamesData(training_csv_path)
 
@@ -629,7 +632,7 @@ The main testing flow:
     \item \textbf{Predict} on the test set and \textbf{compute metrics}.
 \end{enumerate}
 
-\begin{lstlisting}[language=Python]
+\begin{minted}{python}
 merged_df = games_data.prepare_training_data()
 merged_df["point_diff"] = merged_df["home_team_score"] - merged_df["away_team_score"]
 
@@ -645,7 +648,7 @@ X_train, X_test, y_train, y_test, diff_train, diff_test = train_test_split(
 
 y_probs = my_model.predict_batch(X_test)
 y_pred  = (y_probs >= 0.5).astype(int)
-\end{lstlisting}
+\end{minted}
 
 \noindent
 Metrics such as Accuracy, Brier Score, Log Loss, and ROC AUC are calculated, and a confusion matrix or classification report is generated.
