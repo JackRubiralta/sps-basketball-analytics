@@ -156,8 +156,82 @@ def main():
     axs[5].set_ylabel("True label")
     axs[5].set_xlabel("Predicted label")
 
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
+    
+    # # 1) Prediction vs. Actual Point Difference
+    # plt.figure(figsize=(6,4))
+    # plt.scatter(y_probs, diff_test, alpha=0.5)
+    # plt.xlabel("Predicted Probability (Home Win)")
+    # plt.ylabel("Actual Home Team Point Diff")
+    # plt.title("Prediction vs. Actual Point Diff")
+    # plt.grid(True)
+    # plt.savefig("graph_prediction_vs_actual.png", dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # # 2) Calibration Plot
+    # plt.figure(figsize=(6,4))
+    # plt.plot(mean_predicted, actual_win_rates, 'o-', label="Actual vs. Predicted")
+    # plt.plot([0, 1], [0, 1], 'k--', label="Perfect Calibration")
+    # plt.xlabel("Mean Predicted Probability")
+    # plt.ylabel("Actual Home Win Rate")
+    # plt.title("Calibration Plot")
+    # plt.legend(loc="best")
+    # plt.grid(True)
+    # plt.savefig("graph_calibration.png", dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # # 3) ROC Curve
+    # plt.figure(figsize=(6,4))
+    # fpr, tpr, thresholds_roc = roc_curve(y_test, y_probs)
+    # plt.plot(fpr, tpr, label=f"AUC = {auc:.3f}")
+    # plt.plot([0, 1], [0, 1], 'k--')
+    # plt.xlabel("False Positive Rate")
+    # plt.ylabel("True Positive Rate")
+    # plt.title("ROC Curve")
+    # plt.legend(loc="lower right")
+    # plt.grid(True)
+    # plt.savefig("graph_roc_curve.png", dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # # 4) Precision-Recall Curve
+    # plt.figure(figsize=(6,4))
+    # precision, recall, thresholds_pr = precision_recall_curve(y_test, y_probs)
+    # plt.plot(recall, precision, label="Precision-Recall")
+    # plt.xlabel("Recall")
+    # plt.ylabel("Precision")
+    # plt.title("Precision-Recall Curve")
+    # plt.legend(loc="best")
+    # plt.grid(True)
+    # plt.savefig("graph_precision_recall.png", dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # # 5) Histogram of Predicted Probabilities
+    # plt.figure(figsize=(6,4))
+    # plt.hist(y_probs, bins=20, range=(0,1), alpha=0.7, color='g', edgecolor='k')
+    # plt.xlabel("Predicted Probability (Home Win)")
+    # plt.ylabel("Count")
+    # plt.title("Distribution of Predictions")
+    # plt.grid(True)
+    # plt.savefig("graph_histogram.png", dpi=300, bbox_inches='tight')
+    # plt.close()
+
+    # # 6) Confusion Matrix (Visual)
+    # plt.figure(figsize=(6,4))
+    # plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+    # plt.title("Confusion Matrix (Visual)")
+    # plt.xticks([0, 1], ["Pred 0", "Pred 1"])
+    # plt.yticks([0, 1], ["True 0", "True 1"])
+    # for i in range(cm.shape[0]):
+    #     for j in range(cm.shape[1]):
+    #         plt.text(j, i, str(cm[i, j]),
+    #                 ha="center", va="center",
+    #                 color="black", fontsize=12)
+    # plt.xlabel("Predicted label")
+    # plt.ylabel("True label")
+    # plt.savefig("graph_confusion_matrix.png", dpi=300, bbox_inches='tight')
+    # plt.close()
+
 
 if __name__ == "__main__":
     main()
