@@ -81,11 +81,12 @@ We assume a CSV file, \seqsplit{games\_data.csv}, where each row represents one 
 
 \noindent
 \textbf{Example CSV Rows:}
-\begin{minted}[breaklines]{csv}
-game_id,game_date,team,FGA_2,FGM_2,FGA_3,FGM_3,FTA,FTM,AST,BLK,STL,TOV,TOV_team,DREB,OREB,F_tech,F_personal,team_score,opponent_team_score,largest_lead,notD1_incomplete,OT_length_min_tot,rest_days,attendance,tz_dif_H_E,prev_game_dist,home_away,home_away_NS,travel_dist
-game_2022_2011,12/30/2021,georgia_lady_bulldogs,50,22,11,5,6,3,14,7,7,18,0,25,11,0,18,62,68,1.0,False,,9.0,3241.0,0.0,0.0,home,1,0.0
-game_2022_2011,12/30/2021,lsu_tigers,50,24,11,4,15,8,15,2,15,14,2,25,11,0,7,68,62,14.0,False,,3.0,3241.0,0.0,824.0,away,-1,824.0
+\begin{minted}[breaklines]{text}
+game_id, game_date, team, FGA_2, FGM_2, FGA_3, FGM_3, FTA, FTM, AST, BLK, STL, TOV, TOV_team, DREB, OREB, F_tech, F_personal, team_score, opponent_team_score, largest_lead, notD1_incomplete, OT_length_min_tot, rest_days, attendance, tz_dif_H_E, prev_game_dist, home_away, home_away_NS, travel_dist
+game_2022_2011, 12/30/2021, georgia_lady_bulldogs, 50, 22, 11, 5, 6, 3, 14, 7, 7, 18, 0, 25, 11, 0, 18, 62, 68, 1.0, False, , 9.0, 3241.0, 0.0, 0.0, home, 1, 0.0
+game_2022_2011, 12/30/2021, lsu_tigers, 50, 24, 11, 4, 15, 8, 15, 2, 15, 14, 2, 25, 11, 0, 7, 68, 62, 14.0, False, , 3.0, 3241.0, 0.0, 824.0, away, -1, 824.0
 \end{minted}
+
 \subsection{Class \seqsplit{GamesData} for Data Management}
 \seqsplit{GamesData} serves as a robust data handler:
 \begin{enumerate}[label=\arabic*)]
