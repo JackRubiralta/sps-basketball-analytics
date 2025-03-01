@@ -45,7 +45,7 @@
 % INTRODUCTION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Introduction}
-This document provides a technically rigorous explanation of a sports outcome prediction pipeline. We start from raw game data (stored in a CSV), transform it into meaningful features (including advanced statistics such as Strength-of-Schedule), and then construct a \textbf{stacking ensemble} of multiple machine learning models. This pipeline is designed to predict the probability that a given home team will win against a specific away team.
+This document provides a technical explanation of a sports outcome prediction pipeline. We start from raw game data (stored in a CSV), transform it into meaningful features (including advanced statistics such as Strength-of-Schedule), and then construct a \textbf{stacking ensemble} of multiple machine learning models. This pipeline is designed to predict the probability that a given home team will win against a specific away team.
 
 Key highlights and advanced topics covered:
 \begin{itemize}[noitemsep]
@@ -314,16 +314,6 @@ XGBoost (eXtreme Gradient Boosting) extends gradient boosting with:
     \item \(\gamma\) (or \(\seqsplit{min\_split\_loss}\)): Minimum loss reduction required for a partition to occur (discourages overfitting).
 \end{itemize}
 
-\begin{minted}[breaklines]{python}
-# Excerpt showing XGBoost creation in Model.generate_model
-xgb_clf = XGBClassifier(
-    eval_metric='logloss',
-    random_state=42,
-)
-\end{minted}
-
-\noindent In the above snippet, we instantiate our XGBoost classifier with a specific \(\seqsplit{eval\_metric='logloss'}\) and a fixed \(\seqsplit{random\_state}\). This ensures reproducibility and that the final objective is aligned with typical binary classification (log loss).
-
 \subsection{Sub-Model B: Random Forest (Bagging Ensemble of Trees)}
 
 \subsubsection{Bagging and Decision Trees}
@@ -343,13 +333,6 @@ Breiman’s Random Forest introduces further randomness by randomly selecting a 
     \item \(\seqsplit{max\_features}\): Determines how many features are considered at each split (e.g., \(\sqrt{d}\) or \(\log_2 d\)).
 \end{itemize}
 
-\begin{minted}[breaklines]{python}
-# Excerpt showing Random Forest creation in Model.generate_model
-rf_clf = RandomForestClassifier(random_state=42)
-\end{minted}
-
-\noindent Here, we see how the \(\seqsplit{RandomForestClassifier}\) is created with a fixed \(\seqsplit{random\_state}\). Additional parameters (like \(\seqsplit{n\_estimators}\) or \(\seqsplit{max\_depth}\)) can be passed or tuned via hyperparameter searches.
-
 \subsection{Meta-Learner: Logistic Regression}
 
 \subsubsection{Logistic Regression and Convex Optimization}
@@ -365,13 +348,6 @@ where \(z_i = \beta_0 + \sum_{j=1}^k \beta_j x_{ij}\) and \(\sigma(\cdot)\) is t
     \item \textbf{Low Variance, High Interpretability}: It has relatively low variance and a well-understood convex loss surface. The learned coefficients can be inspected to see how heavily each sub-model influences the final prediction.
     \item \textbf{Simplicity in High-Level Model Architecture}: Minimizes overfitting risk at the meta-level, ensuring each base model’s predictions are used in a way that improves generalization.
 \end{enumerate}
-
-\begin{minted}[breaklines]{python}
-# Excerpt showing Logistic Regression creation in Model.generate_model
-meta_learner = LogisticRegression(max_iter=2000)
-\end{minted}
-
-\noindent We specify \(\seqsplit{max\_iter=2000}\) to ensure logistic regression has enough iterations to converge, especially with potentially complex stacking outputs.
 
 \subsection{Stacking Mechanism and Synergy}
 Once the base models (XGBoost, Random Forest) are trained, the meta-learner (Logistic Regression) is fit on:
@@ -513,26 +489,6 @@ if do_hyperparam_search:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % EVALUATION AND DIAGNOSTICS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Evaluation and Diagnostics}
-
-\subsection{Standard Metrics}
-\begin{itemize}[noitemsep]
-    \item \textbf{Accuracy}: 
-    \[
-    \text{Accuracy} = \frac{\text{correct predictions}}{\text{total}}
-    \]
-    \item \textbf{ROC AUC}: Probability the model ranks a random positive higher than a random negative. 
-    \item \textbf{Log Loss}: Measures the “confidence” of correct vs. incorrect predictions. Lower is better.
-    \item \textbf{Brier Score}: 
-    \[
-    \text{Brier} = \frac{1}{N} \sum_{i=1}^N (\hat{p}_i - y_i)^2
-    \]
-    Also used to judge calibration quality.
-\end{itemize}
-
-\subsection{Calibration Considerations}
-For probabilistic outputs, we examine calibration plots. A well-calibrated model implies that among all test samples where \(\hat{p} = p\), approximately \(p \times 100\%\) of them actually have \(y=1\). This is critical if the predictions are used in a decision-making context (e.g., betting markets or resource allocation).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % DEPLOYMENT AND PREDICTION USE CASES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -601,12 +557,7 @@ def predict_batch(self, X: np.ndarray) -> np.ndarray:
 
 \noindent
 This method bypasses the repeated feature engineering steps because it expects \(\mathbf{X}\) to be in the exact format used during training. This is especially handy for large-scale or repeated forecasts.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% EVALUATION AND TESTING
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% EVALUATION AND TESTING
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Evaluation and Testing}
 \label{sec:evaluation_testing}
 \subsection{Testing Methodology and Code Excerpts}
@@ -622,7 +573,7 @@ model_file_path = "model_stuff.json"
 my_model = Model(model_file_path=model_file_path, games_data=games_data)
 if my_model.model is None:
     raise ValueError(f"No model loaded from {model_file_path}.")
-\end{lstlisting}
+\end{minted}
 
 \subsubsection{Evaluation on a Held-Out Test Split}
 The main testing flow:
@@ -649,36 +600,113 @@ X_train, X_test, y_train, y_test, diff_train, diff_test = train_test_split(
 
 y_probs = my_model.predict_batch(X_test)
 y_pred  = (y_probs >= 0.5).astype(int)
+
+print("\n=== MODEL PERFORMANCE (TEST SPLIT) ===")
+print(f"Accuracy:  {accuracy:.4f}")
+print(f"Brier:     {brier:.4f}")
+print(f"Log Loss:  {ll:.4f}")
+print(f"ROC AUC:   {auc:.4f}")
+print("\nConfusion Matrix:")
+print(cm)
+print("\nClassification Report:")
+print(report)
 \end{minted}
 
-\noindent
-Metrics such as Accuracy, Brier Score, Log Loss, and ROC AUC are calculated, and a confusion matrix or classification report is generated.
+\subsection{Metric Definitions}
+In the snippet above, we see several widely used classification metrics:
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% RESULTS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Results}
-\subsection{Overall Results and Accuracy}
-
-\noindent
-\textbf{Numerical Results:}
+\begin{itemize}
+\item \textbf{Accuracy}. Denoted as
+\[
+\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}},
+\]
+where \(\text{TP}\) = True Positives, \(\text{TN}\) = True Negatives, \(\text{FP}\) = False Positives, \(\text{FN}\) = False Negatives. It indicates the fraction of predictions our model correctly classifies out of all tested instances.
+\item \textbf{Brier Score}. 
+\[
+\text{Brier} = \frac{1}{N} \sum_{i=1}^N \bigl(\hat{p}_i - y_i\bigr)^2,
+\]
+where \(\hat{p}_i\) is the predicted probability of the positive class, and \(y_i \in \{0,1\}\) is the ground truth. Lower values imply better-calibrated probability estimates. 
+\item \textbf{Log Loss} (Cross-Entropy Loss). Measures the quality of probabilistic predictions. For binary classification:
+\[
+\text{LogLoss} = -\frac{1}{N}\sum_{i=1}^N \Bigl[y_i\ln(\hat{p}_i) + (1-y_i)\ln(1-\hat{p}_i)\Bigr].
+\]
+The lower, the better (more confident and correct predictions).
+\item \textbf{ROC AUC}. The area under the ROC (Receiver Operating Characteristic) curve. It is a measure of how well the model discriminates between the two classes across all possible thresholds. 
+\item \textbf{Confusion Matrix}. A \2x2 matrix comparing actual vs.\ predicted classes: 
 \[
 \begin{bmatrix}
-\text{TN} = 262 & \text{FP} = 134 \\
-\text{FN} = 71  & \text{TP} = 516
+\text{TN} & \text{FP}\\
+\text{FN} & \text{TP}
 \end{bmatrix}.
 \]
-The model achieves an \(\textbf{accuracy} \approx 79\%\). Formally, accuracy is:
-\[
-\text{Accuracy} \;=\; \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}},
-\]
-where \(\text{TP}, \text{TN}, \text{FP}, \text{FN}\) are true positives, true negatives, false positives, and false negatives, respectively.
+\item \textbf{Classification Report}. Provides \emph{precision}, \emph{recall}, and \emph{F1-score} for each class, along with their macro and weighted averages:
+  \begin{itemize}
+    \item \textbf{Precision} for a class = 
+    \(\frac{\text{TP}}{\text{TP} + \text{FP}}\) (How often we are correct when we predict a given class).
+    \item \textbf{Recall} for a class = 
+    \(\frac{\text{TP}}{\text{TP} + \text{FN}}\) (How many of the true members of a class we successfully identify).
+    \item \textbf{F1-Score} for a class = \(2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}\). 
+    \item \textbf{Macro Averages} take the unweighted mean of metric values for each class. This treats both classes equally, so:
+      \[
+        \text{Macro-Precision} = \frac{\text{Precision}_{(0)} + \text{Precision}_{(1)}}{2},
+      \]
+      and similarly for macro-recall and macro-F1.  
+    \item \textbf{Weighted Averages} weight each class's metric contribution by its support (i.e.\ the number of samples in that class). This is often more representative when classes are imbalanced, as:
+      \[
+        \text{Weighted-Precision} = 
+          \frac{n_0 \cdot \text{Precision}_{(0)} + n_1 \cdot \text{Precision}_{(1)}}{n_0 + n_1},
+      \]
+      where \(n_0\) and \(n_1\) are the sample counts for classes 0 and 1. The same approach applies to recall and F1.
+  \end{itemize}
+\end{itemize}
 
-\paragraph{Overall Performance.}
-An accuracy of \(\approx 79\%\) indicates that the model robustly discriminates between home and away wins. The confusion matrix reveals that the model correctly identifies \(\text{TP} = 516\) home-team wins and \(\text{TN} = 262\) away-team wins, with moderate false positives (\(\text{FP} = 134\)) and false negatives (\(\text{FN} = 71\)). Depending on the use case (e.g., betting vs.\ general analytics), one could adjust the probability threshold to prioritize reducing false positives or false negatives.
+
+
+
+\section{Results Analysis}
+\label{sec:results}
+
+\subsection{Classification Report}
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+   & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
+\midrule
+0 (Away Win) & 0.7868 & 0.6616 & 0.7188 & 396 \\
+1 (Home Win) & 0.7938 & 0.8790 & 0.8343 & 587 \\
+\midrule
+\textbf{Accuracy}   & \multicolumn{3}{c}{0.7915} & 983 \\
+\textbf{Macro Avg}  & 0.7903 & 0.7703 & 0.7765 & 983 \\
+\textbf{Weighted Avg} & 0.7910 & 0.7915 & 0.7878 & 983 \\
+\bottomrule
+\end{tabular}
+\caption{Classification report on the held-out test set.}
+\label{table:combined_conf_rep}
+\end{table}
+
+\paragraph{Analysis of the Classification Report.}
+From Table~\ref{table:combined_conf_rep}, the model achieves an overall accuracy of 79.15\%. For \textit{home wins} (class 1), the recall (i.e., correctly identified home-win games) is notably high at 87.90\%, while the precision (fraction of predicted home wins that are indeed home wins) stands at 79.38\%. These results confirm the model’s tendency to capture most true home wins with relatively few false alarms. For \textit{away wins} (class 0), the lower recall (66.16\%) indicates the model is more conservative in labeling away-team victories—an outcome that often aligns with basketball’s home-court advantage trends.
+
+\subsection{Confusion Matrix}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\textwidth]{graph_confusion_matrix.png}
+\caption{Confusion matrix comparing predicted classes vs.\ actual classes on the test set.}
+\label{fig:confusion_matrix}
+\end{figure}
+
+\paragraph{Analysis of the Confusion Matrix.}
+Figure~\ref{fig:confusion_matrix} shows the raw count of predictions relative to actual outcomes. In total:
+\begin{itemize}
+    \item \textbf{True Negatives (TN)} = 262, meaning these games were away wins \emph{and} correctly predicted as such.
+    \item \textbf{False Positives (FP)} = 134, where the model predicted a home win but the away team actually won.
+    \item \textbf{False Negatives (FN)} = 71, where the model predicted an away win but the home team in fact won.
+    \item \textbf{True Positives (TP)} = 516, denoting correctly predicted home-team victories.
+\end{itemize}
+The model clearly favors identifying home victories, as evidenced by the larger number of TPs compared to FPs. However, the relatively low FN count suggests the model still does well at catching most home-win scenarios. Overall, the confusion matrix reinforces the classification report’s findings, with most misclassifications coming from predicting \enquote{home win} when the away team actually prevailed. This bias is understandable given the historical prevalence of home-court advantage in basketball.
 
 \subsection{ROC Curve and AUC}
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{graph_roc_curve.png}
@@ -689,17 +717,10 @@ An accuracy of \(\approx 79\%\) indicates that the model robustly discriminates 
 \noindent
 \textbf{Numerical Result:} \(\text{ROC AUC} = 0.855.\)
 
-\paragraph{Analysis.}
-The ROC curve plots the \textit{True Positive Rate} (TPR) against the \textit{False Positive Rate} (FPR) at various classification thresholds. Formally,
-\[
-\text{TPR} = \frac{\text{TP}}{\text{TP} + \text{FN}}, 
-\quad
-\text{FPR} = \frac{\text{FP}}{\text{FP} + \text{TN}}.
-\]
-An \(\text{AUC} = 0.855\) indicates that the model can correctly rank a randomly chosen positive instance (home-team win) above a randomly chosen negative instance (away-team win) roughly 85.5\% of the time. This is a strong result, showing that the classifier is well above the random-guessing baseline (\(\text{AUC} = 0.5\)).
+\paragraph{Analysis.} 
+The ROC curve plots the \emph{True Positive Rate} (\(\text{TP}/(\text{TP}+\text{FN})\)) against the \emph{False Positive Rate} (\(\text{FP}/(\text{FP}+\text{TN})\)) at varying decision thresholds. An AUC of \(0.855\) indicates that if we randomly sample one home-win game and one away-win game, the model ranks the home-win instance higher (i.e., outputs a larger predicted probability) roughly 85.5\% of the time. This performance is significantly better than a random-guess baseline (\(\text{AUC}=0.5\)) and underscores the model’s strong discriminative power in ordering matchups by likelihood of a home victory.
 
 \subsection{Calibration Plot and Brier Score}
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{graph_calibration.png}
@@ -711,16 +732,9 @@ An \(\text{AUC} = 0.855\) indicates that the model can correctly rank a randomly
 \textbf{Numerical Result:} \(\text{Brier Score} = 0.1523.\)
 
 \paragraph{Probability Calibration.}
-The calibration plot compares the model’s predicted probabilities to the observed frequency of home-team wins. Perfect calibration would lie on the diagonal (dashed line). Our model’s curve is reasonably close to that diagonal, indicating that when the model predicts a probability \(p\), the long-run fraction of actual home-team wins is close to \(p\). This is further quantified by the Brier Score:
-\[
-\text{Brier Score} 
-\;=\;
-\frac{1}{N}\sum_{i=1}^N (\hat{p}_i - y_i)^2,
-\]
-where \(\hat{p}_i\) is the predicted probability of a home-team win for instance \(i\), and \(y_i \in \{0,1\}\) is the true outcome. A value of \(0.1523\) is relatively low, indicating strong calibration performance.
+A perfectly calibrated model lies close to the diagonal in the calibration plot, meaning that a predicted probability \(p\) matches the empirical fraction of home-team wins at that \(p\). The model’s calibration curve in Fig.~\ref{fig:calibration} remains relatively close to the ideal diagonal, suggesting good calibration. The Brier Score of \(0.1523\) (where 0 represents perfect calibration and 1 is worst) further confirms that predicted probabilities align well with observed outcomes on average. 
 
 \subsection{Distribution of Predictions}
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{graph_histogram.png}
@@ -729,11 +743,9 @@ where \(\hat{p}_i\) is the predicted probability of a home-team win for instance
 \end{figure}
 
 \noindent
-\textbf{Analysis of Distribution.}
-The histogram shows that the model often assigns probabilities near 0.8--1.0, suggesting high confidence in many home-team wins. There is also a smaller cluster around 0.2--0.3, where the model is moderately confident in away-team wins. The bimodal nature indicates the model tends to be decisive about certain matchups (likely when there is a clear strength differential between teams), but it can also produce mid-range probabilities when matchups are more balanced.
+The histogram of predicted probabilities reveals a noticeable clustering of predictions near 0.8--1.0, reflecting high confidence for many home teams, and a secondary concentration around 0.2--0.3 for certain away favorites. This indicates the model often discerns matchups with clear disparities in team strength or situational advantages. The intermediate region (0.4--0.6) is less populated, suggesting fewer `toss-up' predictions. Depending on one’s risk appetite or strategic objectives, these distributions can inform threshold calibration for practical deployment (e.g., only classifying “home favorite” if \(\hat{p}\ge 0.7\)).
 
 \subsection{Precision-Recall Curve}
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{graph_precision_recall.png}
@@ -742,11 +754,10 @@ The histogram shows that the model often assigns probabilities near 0.8--1.0, su
 \end{figure}
 
 \noindent
-\textbf{Precision-Recall Analysis.}
-Precision is defined as \(\text{TP} / (\text{TP} + \text{FP})\), and recall is \(\text{TP} / (\text{TP} + \text{FN})\). This plot is especially relevant when the cost of false positives vs.\ false negatives differs. We see that precision remains relatively high for a wide range of recall levels, which is beneficial if the application requires capturing most home-team wins (high recall) without incurring too many false positives. As recall approaches 1.0, precision naturally declines, illustrating the trade-off between these two metrics.
+\textbf{Analysis.}
+Precision (fraction of predicted positives that are truly positive) and recall (fraction of actual positives captured) help visualize performance under varying decision thresholds. The model maintains reasonably high precision across a broad range of recall values, reflecting that it can identify a substantial portion of home-team wins without incurring an overwhelming number of false alarms. In highly imbalanced or cost-sensitive scenarios, this curve can guide the optimal threshold selection. 
 
 \subsection{Prediction vs.\ Actual Point Differential}
-
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.5\textwidth]{graph_prediction_vs_actual.png}
@@ -755,18 +766,38 @@ Precision is defined as \(\text{TP} / (\text{TP} + \text{FP})\), and recall is \
 \end{figure}
 
 \noindent
-\textbf{Precision-Recall and Point Differential Analysis.}
-The scatter plot indicates a strong correlation between the model’s predicted probability of a home-team win (x-axis) and the actual margin of victory or loss (y-axis). As predicted probabilities approach 1.0, the actual home-team point differential is often significantly positive (large margin of victory). Conversely, when predicted probabilities fall below 0.5, we observe many negative point differentials, indicating away-team success. This correlation shows that the model captures not just the binary outcome but also the \emph{degree} of dominance in many cases.
+\textbf{Interpretation.}
+This scatter plot compares the model’s predicted probability of a home-team win (x-axis) to the actual margin of victory or loss (y-axis, home minus away). A strong positive correlation is apparent: as predicted probabilities approach 1.0, the home-team point margin tends to be significantly positive. Conversely, lower predicted probabilities correspond to negative margins (away-team success). While the model does not directly predict point spreads, the alignment with margin of victory indicates it often assigns high confidence to genuinely dominant home performances, suggesting it captures not just outcomes but also some notion of the degree of dominance.
 
-\subsection{Summary of Model Performance}
+\section{Conclusion of Performance}
+\label{sec:results_synthesis}
 
-\paragraph{Overall Metrics.}
-Beyond accuracy (\(\approx 79\%\)) and ROC AUC (0.855), the model’s calibration is quantified by a low Brier Score (0.1523) and a well-aligned calibration curve. Together, these metrics suggest that:
+\subsection{Highlights of Metrics}
 \begin{itemize}
-    \item The model is \emph{discriminative}, effectively separating home and away wins (high AUC).
-    \item The model is \emph{well-calibrated}, meaning its predicted probabilities match actual outcome frequencies.
+  \item \textbf{Accuracy} around 79\%, reinforcing the confusion matrix and classification report.
+  \item \textbf{ROC AUC} of 0.855, indicating strong discriminative capacity.
+  \item \textbf{Brier Score} of 0.1523, evidencing robust calibration.
+  \item \textbf{High Recall} for home wins (0.8790) and balanced macro averages, demonstrating the model’s utility across diverse matchups.
+  \item \textbf{Decisiveness in Probability Distribution}, showing fewer borderline predictions and a good correlation with actual scoring margins.
 \end{itemize}
 
-\paragraph{Conclusion.}
-By leveraging a stacking ensemble of XGBoost and Random Forest with a Logistic Regression meta-learner, alongside carefully engineered features (including difference/ratio stats, strength-of-schedule, rest days), we achieve a model that excels in both \emph{accuracy} and \emph{calibration}.
+\subsection{Detailed Discussion of Model Performance}
+By leveraging a stacking ensemble of XGBoost and Random Forest with a logistic regression meta-learner—and using sophisticated feature engineering (e.g., difference and ratio features, strength-of-schedule, rest days)—the pipeline not only excels in classification metrics (accuracy, AUC, F1-scores) but also in probability calibration (Brier, calibration curves). 
+
+These results reflect the performance of our \emph{stacking ensemble} pipeline on an 80--20 stratified split of the data (with the ensemble comprising XGBoost and Random Forest as base learners, and Logistic Regression as a meta-learner). The overall accuracy of nearly \(79\%\) indicates that the model correctly predicts four out of every five games. 
+
+From the classification report, we observe a relatively high \emph{recall} of \(87.9\%\) for the home-win class. This indicates that, among all true home victories, the model captures a large majority. The \emph{precision} for the home-win class is nearly \(79.4\%\), meaning that when the model does forecast a home victory, it is correct a substantial portion of the time. The away-win class shows slightly lower recall (\(\approx66\%\)), which suggests the model is more conservative in labeling a game as an away win.
+
+Such a tendency aligns with broader basketball trends (home-court advantage) and with the dual-learner approach of the ensemble:
+\begin{enumerate}
+    \item \textbf{XGBoost} often excels in capturing nuanced patterns through gradient boosting on difference/ratio features (e.g., comparing teams’ average stats, rest days, and strength-of-schedule). 
+    \item \textbf{Random Forest} incorporates a diverse set of bootstrap-sampled decision trees that capture complementary patterns or possible upsets.
+    \item \textbf{Logistic Regression} (the meta-learner) takes these two probability outputs and smoothly blends them. Since logistic regression is itself well-calibrated and relatively low-variance, it exploits the diverse biases of the base learners and produces a final probability that—on balance—leans slightly toward predicting home-team success whenever indicators strongly point that way.
+\end{enumerate}
+
+Overall, the ensemble remains robust. By combining the two different tree-based methods in a stacking framework, the model mitigates weaknesses inherent in any single approach. Random Forest’s bagging mechanism reduces variance, while XGBoost’s gradient-boosting structure refines splits and handles subtle second-order patterns. The logistic-regression top layer then determines the best weighting of these probability estimates. This synergy yields a meaningful balance between capturing away upsets and recognizing strong home favorites.
+
+From a practical standpoint, the slight inclination to overpredict home-team wins (as seen by more \(\mathrm{FP}\) than \(\mathrm{FN}\)) might be acceptable for many real-world scenarios—especially if missing a potential home upset is less desirable than occasionally being wrong on an away victory. However, if an application \emph{needed} to be more sensitive to away upsets, the probability threshold (default of 0.5) could be adjusted to reduce false positives.
+
+In summary, these metrics confirm that the stacking ensemble has learned a nuanced understanding of basketball outcomes and, in the majority of cases, assigns well-calibrated predictions that align with actual game results.
 \end{document}
